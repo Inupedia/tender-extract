@@ -38,7 +38,7 @@ English | [中文](README.md)
 ## 🛠️ Installation Guide
 
 ### System Requirements
-- Python 3.9+
+- Python 3.12+
 - [uv](https://docs.astral.sh/uv/) package manager
 - Optional: Ollama (for local LLM inference)
 
@@ -269,7 +269,7 @@ Each document generates a corresponding JSON file containing:
 **1. Installation Failure**
 ```bash
 # Ensure correct Python version
-python --version  # Should be 3.9+
+python --version  # Should be 3.12+
 
 # Reinstall dependencies
 uv sync --reinstall

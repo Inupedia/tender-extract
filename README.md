@@ -38,7 +38,7 @@
 ## 🛠️ 安装指南
 
 ### 系统要求
-- Python 3.9+
+- Python 3.12+
 - [uv](https://docs.astral.sh/uv/) 包管理器
 - 可选：Ollama（用于本地LLM推理）
 
@@ -269,7 +269,7 @@ synonyms:
 **1. 安装失败**
 ```bash
 # 确保使用正确的Python版本
-python --version  # 应该是3.9+
+python --version  # 应该是3.12+
 
 # 重新安装依赖
 uv sync --reinstall
