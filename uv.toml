@@ -1,0 +1,6 @@
+# uv配置文件 - 使用淘宝PyPI镜像源
+index-url = "https://mirrors.aliyun.com/pypi/simple/"
+extra-index-url = [
+    "https://pypi.org/simple/",
+    "https://pypi.tuna.tsinghua.edu.cn/simple/"
+] 

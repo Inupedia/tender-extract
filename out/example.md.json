@@ -1,0 +1,644 @@
+{
+  "metadata": {
+    "filename": "test_short.md",
+    "file_size": 694,
+    "total_lines": 29,
+    "total_chunks": 1,
+    "processing_time": 280.33047103881836,
+    "extraction_stats": {
+      "total_fields": 21,
+      "fields_by_type": {
+        "project_name": 1,
+        "bidder": 1,
+        "bid_amount": 1,
+        "deposit": 1,
+        "contact_info": 1,
+        "date": 1,
+        "project_number": 1,
+        "tender_keywords": 1,
+        "company_keywords": 1,
+        "position_keywords": 1,
+        "certificate_keywords": 1,
+        "tenderer": 1,
+        "legal_representative": 1,
+        "bid_date": 1,
+        "person": 1,
+        "location": 1,
+        "company": 1,
+        "project": 1,
+        "department": 1,
+        "position": 1,
+        "certificate": 1
+      },
+      "avg_confidence": 0.7928571428571428
+    }
+  },
+  "fields": {
+    "project_name": {
+      "field_name": "project_name",
+      "field_type": "project_name",
+      "values": [
+        {
+          "value": "测试工程项目",
+          "start": 0,
+          "end": 0,
+          "confidence": 1.0,
+          "source": "llm",
+          "pattern": "ollama:None",
+          "ref": null
+        },
+        {
+          "value": "项目名称:测试工程项目",
+          "start": 14,
+          "end": 25,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "([^，。\\n]{5,50}工程[^，。\\n]{0,50})",
+          "ref": "项目名称:测试工程项目"
+        },
+        {
+          "value": "投标人:测试工程集团有限公司",
+          "start": 64,
+          "end": 78,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "([^，。\\n]{5,50}工程[^，。\\n]{0,50})",
+          "ref": "投标人:测试工程集团有限公司"
+        },
+        {
+          "value": "职称:高级工程师",
+          "start": 282,
+          "end": 290,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "([^，。\\n]{5,50}工程[^，。\\n]{0,50})",
+          "ref": "职称:高级工程师"
+        }
+      ],
+      "primary_value": "测试工程项目",
+      "confidence": 1.0,
+      "conflicts": []
+    },
+    "bidder": {
+      "field_name": "bidder",
+      "field_type": "bidder",
+      "values": [
+        {
+          "value": "测试工程集团有限公司",
+          "start": 64,
+          "end": 78,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "投标人[：:]\\s*([^，。\\n]{5,50})",
+          "ref": "[章节路径: 测试标书文件 → 投标人信息] ## 投标人信息 投标人：测试工程集团有限公司 法定代表人：张三 职务：总经理 联系电话：13800138000 地址：北京市朝阳区测试路123号"
+        },
+        {
+          "value": "招标人:测试建设有限公司",
+          "start": 43,
+          "end": 57,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "([^，。\\n]{5,50}公司[^，。\\n]{0,30})",
+          "ref": "招标人:测试建设有限公司"
+        },
+        {
+          "value": "投标人:测试工程集团有限公司",
+          "start": 64,
+          "end": 78,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "([^，。\\n]{5,50}公司[^，。\\n]{0,30})",
+          "ref": "投标人:测试工程集团有限公司"
+        }
+      ],
+      "primary_value": "测试工程集团有限公司",
+      "confidence": 0.95,
+      "conflicts": []
+    },
+    "bid_amount": {
+      "field_name": "bid_amount",
+      "field_type": "bid_amount",
+      "values": [
+        {
+          "value": "1000000.00",
+          "start": 152,
+          "end": 179,
+          "confidence": 0.9,
+          "source": "regex",
+          "pattern": "投标金额[：:]\\s*([^，。\\n]{5,30})",
+          "ref": "1000000.00"
+        }
+      ],
+      "primary_value": "1000000.00",
+      "confidence": 0.9,
+      "conflicts": []
+    },
+    "deposit": {
+      "field_name": "deposit",
+      "field_type": "deposit",
+      "values": [
+        {
+          "value": "人民币伍万元整（50,000.00）",
+          "start": 180,
+          "end": 204,
+          "confidence": 0.9,
+          "source": "regex",
+          "pattern": "保证金[：:]\\s*([^，。\\n]{5,30})",
+          "ref": "人民币伍万元整（50,000.00）"
+        }
+      ],
+      "primary_value": "人民币伍万元整（50,000.00）",
+      "confidence": 0.9,
+      "conflicts": []
+    },
+    "contact_info": {
+      "field_name": "contact_info",
+      "field_type": "contact_info",
+      "values": [
+        {
+          "value": "13800138000",
+          "start": 0,
+          "end": 0,
+          "confidence": 1.0,
+          "source": "llm",
+          "pattern": "ollama:None",
+          "ref": null
+        },
+        {
+          "value": "北京市朝阳区测试路123号",
+          "start": 112,
+          "end": 130,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "地址[：:]\\s*([^，。\\n]{10,50})",
+          "ref": "[章节路径: 测试标书文件 → 投标人信息] ## 投标人信息 投标人：测试工程集团有限公司 法定代表人：张三 职务：总经理 联系电话：13800138000 地址：北京市朝阳区测试路123号"
+        }
+      ],
+      "primary_value": "13800138000",
+      "confidence": 1.0,
+      "conflicts": []
+    },
+    "date": {
+      "field_name": "date",
+      "field_type": "date",
+      "values": [
+        {
+          "value": "2024-8-20",
+          "start": 141,
+          "end": 151,
+          "confidence": 0.9,
+          "source": "regex",
+          "pattern": "([0-9]{4}[-/年][0-9]{1,2}[-/月][0-9]{1,2}[日]?)",
+          "ref": "2024-8-20"
+        },
+        {
+          "value": "2025-12-31",
+          "start": 248,
+          "end": 259,
+          "confidence": 0.9,
+          "source": "regex",
+          "pattern": "([0-9]{4}[-/年][0-9]{1,2}[-/月][0-9]{1,2}[日]?)",
+          "ref": "2025-12-31"
+        },
+        {
+          "value": "2024年8月20日",
+          "start": 0,
+          "end": 0,
+          "confidence": 0.9,
+          "source": "llm",
+          "pattern": "ollama:None",
+          "ref": null
+        },
+        {
+          "value": "2025年12月31日",
+          "start": 0,
+          "end": 0,
+          "confidence": 0.9,
+          "source": "llm",
+          "pattern": "ollama:None",
+          "ref": null
+        }
+      ],
+      "primary_value": "2024-8-20",
+      "confidence": 0.9,
+      "conflicts": []
+    },
+    "project_number": {
+      "field_name": "project_number",
+      "field_type": "project_number",
+      "values": [
+        {
+          "value": "TEST2024001",
+          "start": 26,
+          "end": 42,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "项目编号[：:]\\s*([A-Z0-9\\-_]{5,20})",
+          "ref": "TEST2024001"
+        }
+      ],
+      "primary_value": "TEST2024001",
+      "confidence": 0.95,
+      "conflicts": []
+    },
+    "tender_keywords": {
+      "field_name": "tender_keywords",
+      "field_type": "tender_keywords",
+      "values": [
+        {
+          "value": "测试工程项目",
+          "start": 26,
+          "end": 35,
+          "confidence": 0.8,
+          "source": "regex",
+          "pattern": "keyword:项目编号",
+          "ref": "[章节路径: 测试标书文件 → 项目信息] ## 项目信息 项目名称：测试工程项目 项目编号：TEST-2024-001 招标人：测试建设有限公司"
+        },
+        {
+          "value": "测试建设有限公司",
+          "start": 131,
+          "end": 140,
+          "confidence": 0.8,
+          "source": "regex",
+          "pattern": "keyword:投标",
+          "ref": "[章节路径: 测试标书文件 → 项目信息] ## 项目信息 项目名称：测试工程项目 项目编号：TEST-2024-001 招标人：测试建设有限公司"
+        },
+        {
+          "value": "测试工程集团有限公司",
+          "start": 152,
+          "end": 163,
+          "confidence": 0.8,
+          "source": "regex",
+          "pattern": "keyword:投标",
+          "ref": "[章节路径: 测试标书文件 → 投标人信息] ## 投标人信息 投标人：测试工程集团有限公司 法定代表人：张三 职务：总经理 联系电话：13800138000 地址：北京市朝阳区测试路123号"
+        }
+      ],
+      "primary_value": "测试工程项目",
+      "confidence": 0.8,
+      "conflicts": []
+    },
+    "company_keywords": {
+      "field_name": "company_keywords",
+      "field_type": "company_keywords",
+      "values": [
+        {
+          "value": "测试建设有限公司",
+          "start": 0,
+          "end": 0,
+          "confidence": 0.95,
+          "source": "llm",
+          "pattern": "ollama:None",
+          "ref": null
+        },
+        {
+          "value": "测试工程集团有限公司",
+          "start": 0,
+          "end": 0,
+          "confidence": 0.95,
+          "source": "llm",
+          "pattern": "ollama:None",
+          "ref": null
+        },
+        {
+          "value": "测试工程项目",
+          "start": 51,
+          "end": 60,
+          "confidence": 0.8,
+          "source": "regex",
+          "pattern": "keyword:有限公司",
+          "ref": "[章节路径: 测试标书文件 → 项目信息] ## 项目信息 项目名称：测试工程项目 项目编号：TEST-2024-001 招标人：测试建设有限公司"
+        }
+      ],
+      "primary_value": "测试建设有限公司",
+      "confidence": 0.95,
+      "conflicts": []
+    },
+    "position_keywords": {
+      "field_name": "position_keywords",
+      "field_type": "position_keywords",
+      "values": [
+        {
+          "value": "总经理",
+          "start": 0,
+          "end": 0,
+          "confidence": 0.95,
+          "source": "llm",
+          "pattern": "ollama:None",
+          "ref": null
+        },
+        {
+          "value": "项目经理",
+          "start": 0,
+          "end": 0,
+          "confidence": 0.95,
+          "source": "llm",
+          "pattern": "ollama:None",
+          "ref": null
+        },
+        {
+          "value": "测试工程项目",
+          "start": 79,
+          "end": 89,
+          "confidence": 0.8,
+          "source": "regex",
+          "pattern": "keyword:法定代表人",
+          "ref": "[章节路径: 测试标书文件 → 项目信息] ## 项目信息 项目名称：测试工程项目 项目编号：TEST-2024-001 招标人：测试建设有限公司"
+        },
+        {
+          "value": "人民币伍万元整（50,000.00）",
+          "start": 277,
+          "end": 298,
+          "confidence": 0.8,
+          "source": "regex",
+          "pattern": "keyword:项目经理",
+          "ref": "人民币伍万元整（50,000.00）"
+        }
+      ],
+      "primary_value": "总经理",
+      "confidence": 0.95,
+      "conflicts": []
+    },
+    "certificate_keywords": {
+      "field_name": "certificate_keywords",
+      "field_type": "certificate_keywords",
+      "values": [
+        {
+          "value": "北京市朝阳区测试路123号",
+          "start": 205,
+          "end": 221,
+          "confidence": 0.8,
+          "source": "regex",
+          "pattern": "keyword:资质证书",
+          "ref": "[章节路径: 测试标书文件 → 投标人信息] ## 投标人信息 投标人：测试工程集团有限公司 法定代表人：张三 职务：总经理 联系电话：13800138000 地址：北京市朝阳区测试路123号"
+        }
+      ],
+      "primary_value": "北京市朝阳区测试路123号",
+      "confidence": 0.8,
+      "conflicts": []
+    },
+    "tenderer": {
+      "field_name": "tenderer",
+      "field_type": "tenderer",
+      "values": [
+        {
+          "value": "测试建设有限公司",
+          "start": 43,
+          "end": 57,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "招标人[：:]\\s*([^，。\\n]{5,50})",
+          "ref": "[章节路径: 测试标书文件 → 项目信息] ## 项目信息 项目名称：测试工程项目 项目编号：TEST-2024-001 招标人：测试建设有限公司"
+        }
+      ],
+      "primary_value": "测试建设有限公司",
+      "confidence": 0.95,
+      "conflicts": []
+    },
+    "legal_representative": {
+      "field_name": "legal_representative",
+      "field_type": "legal_representative",
+      "values": [
+        {
+          "value": "张三",
+          "start": 79,
+          "end": 87,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "法定代表人[：:]\\s*([^，。\\n]{2,20})",
+          "ref": "[章节路径: 测试标书文件 → 投标人信息] ## 投标人信息 投标人：测试工程集团有限公司 法定代表人：张三 职务：总经理 联系电话：13800138000 地址：北京市朝阳区测试路123号"
+        }
+      ],
+      "primary_value": "张三",
+      "confidence": 0.95,
+      "conflicts": []
+    },
+    "bid_date": {
+      "field_name": "bid_date",
+      "field_type": "bid_date",
+      "values": [
+        {
+          "value": "2024-8-20",
+          "start": 136,
+          "end": 151,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "投标日期[：:]\\s*(\\d{4}[-/年]\\d{1,2}[-/月]\\d{1,2}[日]?)",
+          "ref": "2024-8-20"
+        },
+        {
+          "value": "2025-12-31",
+          "start": 248,
+          "end": 259,
+          "confidence": 0.95,
+          "source": "smart_extractor",
+          "pattern": "(\\d{4}年\\d{1,2}月\\d{1,2}日)",
+          "ref": "2025-12-31"
+        },
+        {
+          "value": "2024年8月20日",
+          "start": 0,
+          "end": 0,
+          "confidence": 0.95,
+          "source": "llm",
+          "pattern": "ollama:None",
+          "ref": null
+        }
+      ],
+      "primary_value": "2024-8-20",
+      "confidence": 0.95,
+      "conflicts": []
+    },
+    "person": {
+      "field_name": "person",
+      "field_type": "person",
+      "values": [
+        {
+          "value": "张三",
+          "start": 85,
+          "end": 87,
+          "confidence": 0.8,
+          "source": "jieba",
+          "pattern": "pos:nr",
+          "ref": "[章节路径: 测试标书文件 → 投标人信息] ## 投标人信息 投标人：测试工程集团有限公司 法定代表人：张三 职务：总经理 联系电话：13800138000 地址：北京市朝阳区测试路123号"
+        },
+        {
+          "value": "李四",
+          "start": 271,
+          "end": 273,
+          "confidence": 0.8,
+          "source": "jieba",
+          "pattern": "pos:nr",
+          "ref": "[章节: 测试标书文件 → 项目负责人] ## 项目负责人 姓名：李四 职务：项目经理 职称：高级工程师 联系方式：13900139000"
+        }
+      ],
+      "primary_value": "张三",
+      "confidence": 0.8,
+      "conflicts": []
+    },
+    "location": {
+      "field_name": "location",
+      "field_type": "location",
+      "values": [
+        {
+          "value": "北京市",
+          "start": 115,
+          "end": 118,
+          "confidence": 0.8,
+          "source": "jieba",
+          "pattern": "pos:ns",
+          "ref": "[章节路径: 测试标书文件 → 投标人信息] ## 投标人信息 投标人：测试工程集团有限公司 法定代表人：张三 职务：总经理 联系电话：13800138000 地址：北京市朝阳区测试路123号"
+        },
+        {
+          "value": "朝阳区",
+          "start": 118,
+          "end": 121,
+          "confidence": 0.8,
+          "source": "jieba",
+          "pattern": "pos:ns",
+          "ref": "[章节路径: 测试标书文件 → 投标人信息] ## 投标人信息 投标人：测试工程集团有限公司 法定代表人：张三 职务：总经理 联系电话：13800138000 地址：北京市朝阳区测试路123号"
+        }
+      ],
+      "primary_value": "北京市",
+      "confidence": 0.8,
+      "conflicts": []
+    },
+    "company": {
+      "field_name": "company",
+      "field_type": "company",
+      "values": [
+        {
+          "value": "招标人:测试建设有限公司",
+          "start": 43,
+          "end": 55,
+          "confidence": 0.7,
+          "source": "regex",
+          "pattern": "tender:company",
+          "ref": "招标人:测试建设有限公司"
+        },
+        {
+          "value": "投标人:测试工程集团有限公司",
+          "start": 64,
+          "end": 78,
+          "confidence": 0.7,
+          "source": "regex",
+          "pattern": "tender:company",
+          "ref": "投标人:测试工程集团有限公司"
+        }
+      ],
+      "primary_value": "招标人:测试建设有限公司",
+      "confidence": 0.7,
+      "conflicts": []
+    },
+    "project": {
+      "field_name": "project",
+      "field_type": "project",
+      "values": [
+        {
+          "value": "项目名称:测试工程项目",
+          "start": 14,
+          "end": 25,
+          "confidence": 0.7,
+          "source": "regex",
+          "pattern": "tender:project",
+          "ref": "项目名称:测试工程项目"
+        },
+        {
+          "value": "招标人:测试建设",
+          "start": 43,
+          "end": 51,
+          "confidence": 0.7,
+          "source": "regex",
+          "pattern": "tender:project",
+          "ref": "招标人:测试建设"
+        },
+        {
+          "value": "投标人:测试工程",
+          "start": 64,
+          "end": 72,
+          "confidence": 0.7,
+          "source": "regex",
+          "pattern": "tender:project",
+          "ref": "投标人:测试工程"
+        },
+        {
+          "value": "职称:高级工程",
+          "start": 282,
+          "end": 289,
+          "confidence": 0.7,
+          "source": "regex",
+          "pattern": "tender:project",
+          "ref": "职称:高级工程"
+        }
+      ],
+      "primary_value": "项目名称:测试工程项目",
+      "confidence": 0.7,
+      "conflicts": []
+    },
+    "department": {
+      "field_name": "department",
+      "field_type": "department",
+      "values": [],
+      "primary_value": null,
+      "confidence": 0.0,
+      "conflicts": []
+    },
+    "position": {
+      "field_name": "position",
+      "field_type": "position",
+      "values": [
+        {
+          "value": "职务:总经理",
+          "start": 88,
+          "end": 94,
+          "confidence": 0.7,
+          "source": "regex",
+          "pattern": "tender:position",
+          "ref": "职务:总经理"
+        },
+        {
+          "value": "项目负责人",
+          "start": 262,
+          "end": 267,
+          "confidence": 0.7,
+          "source": "regex",
+          "pattern": "tender:position",
+          "ref": "[章节: 测试标书文件 → 项目负责人] ## 项目负责人 姓名：李四 职务：项目经理 职称：高级工程师 联系方式：13900139000"
+        },
+        {
+          "value": "职务:项目经理",
+          "start": 274,
+          "end": 281,
+          "confidence": 0.7,
+          "source": "regex",
+          "pattern": "tender:position",
+          "ref": "职务:项目经理"
+        },
+        {
+          "value": "职称:高级工程师",
+          "start": 282,
+          "end": 290,
+          "confidence": 0.7,
+          "source": "regex",
+          "pattern": "tender:position",
+          "ref": "职称:高级工程师"
+        }
+      ],
+      "primary_value": "职务:总经理",
+      "confidence": 0.7,
+      "conflicts": []
+    },
+    "certificate": {
+      "field_name": "certificate",
+      "field_type": "certificate",
+      "values": [],
+      "primary_value": null,
+      "confidence": 0.0,
+      "conflicts": []
+    }
+  },
+  "chunks_processed": 1,
+  "llm_calls": 9,
+  "cache_hits": 0,
+  "errors": [],
+  "warnings": []
+}

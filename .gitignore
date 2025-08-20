@@ -205,3 +205,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+.DS_Store
+
+examples/*
+!examples/example.md
+
+out/*
+!out/example.md.json
+
