@@ -2,97 +2,76 @@
 
 English | [中文](README.md)
 
-> A **hybrid extraction** pipeline for **thousand-page** level Chinese tender documents (converted to Markdown): First use **rules/dictionaries/NER** to extract deterministic fields, then route only **low-confidence/conflicting** small fragments to **LLM**, ensuring auditability while significantly reducing costs and improving efficiency.
+## 📖 Introduction
+
+### Project Background
+
+In the bidding and tendering industry, tender documents typically contain hundreds or even thousands of pages of complex information. Traditional manual extraction methods face issues of low efficiency, high costs, and insufficient accuracy.
+
+### Project Objectives
+
+`tender-extract` achieves intelligent tender document information extraction through **hybrid extraction technology** (rule engine + large language models):
+
+- **Automated Extraction**: Automatically identify key fields from large volumes of documents
+- **Cost Optimization**: Rule layer covers 60-90% of fields, dramatically reducing LLM API call costs
+- **High Precision**: Combine deterministic rules with intelligent reasoning
+- **Auditable Traceability**: Preserve original text evidence for result verification
+- **Standardized Output**: Unified structured data format
+
+> A **hybrid extraction** pipeline for **thousand-page** level Chinese tender documents: First use **rules/dictionaries/NER** to process deterministic fields, then route only **low-confidence/conflicting** fragments to **LLM**, ensuring auditability while significantly reducing costs and improving efficiency.
 
 ## 🚀 Core Advantages
 
-- **Cost Control**: Rule layer covers 60-90% of hard fields, dramatically reducing LLM API calls
 - **High Performance**: 5 documents processed in only 2.31 seconds, averaging 0.46 seconds per document
-- **Zero LLM Calls**: In your tests, the rule layer completely covered all fields, requiring no LLM calls
-- **Auditability**: Each extraction result preserves original text evidence fragments for traceability and verification
-- **Detailed Progress**: Real-time display of LLM processing progress and content for debugging and monitoring
+- **Cost Control**: Rule layer covers 60-90% of hard fields, dramatically reducing LLM API calls
+- **Auditability**: Each extraction result preserves original text evidence fragments
+- **Detailed Monitoring**: Real-time display of processing progress for debugging
 
 ## ✨ Features
 
-- **Markdown Structure Parsing + Chapter-Priority Slicing**: Based on `markdown-it-py`, builds chapter tree by `# / ## / ###`, then performs recursive character splitting (with minimal overlap).
-- **High-Throughput Rule Layer**: Regex + keyword line heuristics; extracts amounts/dates/deposits/contact info/addresses/postal codes in one pass.
-- **Ultra-Fast Large Dictionary Matching**: Aho–Corasick (`pyahocorasick`) batch phrase scanning (e.g., "qualification requirements/qualification conditions/evaluation methods/consortium" and similar phrases).
-- **Near-Duplicate & Template Recognition**: `RapidFuzz` string similarity + `datasketch` **MinHash LSH**, avoiding duplicate LLM queries.
-- **On-Demand LLM**: Only when rule layer has **low confidence or conflicts**, send **minimal evidence fragments** to LLM; supports **OpenAI Structured Outputs** and local **Ollama**.
-- **Strict Structured Output**: Pydantic/JSONSchema validation, preserving `evidence_spans` (field values + reference locations) for auditing.
-- **Detailed Progress Monitoring**: Real-time display of LLM call progress, sent content, and responses, with debug mode support.
+- **Markdown Structure Parsing**: Chapter tree-based construction with recursive character splitting
+- **High-Throughput Rule Layer**: Regex + keyword heuristics, one-pass extraction of amounts/dates/contact info
+- **Ultra-Fast Dictionary Matching**: Aho–Corasick batch phrase scanning
+- **Intelligent Deduplication**: RapidFuzz + MinHash LSH to avoid duplicate processing
+- **On-Demand LLM**: Route minimal evidence fragments only when low confidence, supporting OpenAI/Ollama
+- **Structured Output**: Pydantic validation with evidence_spans for auditing
 
-## 📊 Actual Performance
+## 📊 Performance
 
 <img src="./assets/1.jpg" alt="Performance Statistics Chart" style="width:300px; height:auto;" />
 
-**Field Extraction Statistics**:
-- 26 different types of fields successfully extracted
-- Average of 24.4 fields extracted per document
-- High-frequency fields (appearing 5 times): project name, bidder, contact info, dates, etc.
-- Medium-frequency fields (appearing 3-4 times): business scope, bid amount, business license, etc.
-- Low-frequency fields (appearing 1-2 times): registered capital, shareholder info, project manager, etc.
+**Extraction Statistics**:
+- 26 field types, average 24.4 fields per document
+- High-frequency: project name, bidder, contact info, dates
+- Medium-frequency: business scope, bid amount, business license
+- Low-frequency: registered capital, shareholder info, project manager
 
 ---
 
-## 🛠️ Installation Guide
+## 🛠️ Quick Start
 
-### System Requirements
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) package manager
-- Optional: Ollama (for local LLM inference)
-
-### Quick Installation
+### Installation
 
 ```bash
-# Clone the project
+# Clone and install
 git clone <repository-url>
 cd tender-extract
-
-# Install basic dependencies + CLI
 uv sync --extra cli
 
-# Install Chinese NER (optional)
+# Optional: Install NER support
 uv sync --extra ner
 
-# Set Ollama address (if using local LLM)
-export OLLAMA_BASE_URL=http://your-ollama-server:11434
-```
-
-### Verify Installation
-
-```bash
-# Check if CLI is available
+# Verify installation
 uv run tender-extract --help
-
-# Run simple test
-uv run tender-extract extract ./examples/ --out ./out --use-ner --llm none --verbose
 ```
-
----
-
-## 🎯 Usage Guide
 
 ### Basic Usage
 
 ```bash
-# Rule-based extraction only (fastest, recommended)
-uv run tender-extract extract ./examples/sample.md --out ./out --use-ner --llm none
+# Rule-based extraction only (fastest)
+uv run tender-extract extract ./examples/ --out ./out --llm none
 
-# Batch process entire directory
-uv run tender-extract extract ./examples/ --out ./out --use-ner --llm none --verbose
-```
-
-### Advanced Usage
-
-```bash
-# Enable detailed progress display
-uv run tender-extract extract ./examples/ --out ./out --use-ner --llm ollama --verbose
-
-# Enable LLM debug mode (show complete prompts and responses)
-uv run tender-extract extract ./examples/ --out ./out --use-ner --llm ollama --verbose --debug
-
-# Use OpenAI (requires API key)
+# Enable LLM (requires API key)
 export OPENAI_API_KEY=your-api-key
 uv run tender-extract extract ./examples/ --out ./out --llm openai --model gpt-4o-mini
 
@@ -100,76 +79,41 @@ uv run tender-extract extract ./examples/ --out ./out --llm openai --model gpt-4
 uv run tender-extract extract ./examples/ --out ./out --llm ollama --model deepseek-r1:32b
 ```
 
-### 📁 Batch Process Your `.md` Files:
+### Main Parameters
 
-```bash
-# Rules/dictionary only (fastest)
-uv run tender-extract extract /path/to/md_dir --pattern "*.md" --out ./out --llm none
-
-# Enable OpenAI (strict JSON output)
-uv run tender-extract extract /path/to/md_dir --out ./out --llm openai --model gpt-4o-mini
-
-# Local Ollama
-uv run tender-extract extract /path/to/md_dir --out ./out --llm ollama --model deepseek-r1:32b
-```
-
-### 🔧 Command Line Parameters
-
-```bash
-uv run tender-extract --help
-uv run tender-extract extract --help
-```
-
-**Main Parameters**:
-- `input_path`: Input file or directory (Markdown)
-- `--pattern`: Pattern matching when input_path is a directory (default "*.md")
+- `input_path`: Input file or directory
 - `--out`: Output directory (default ./out)
-- `--config`: Rules/dictionary YAML (default ./config/example.yaml)
-- `--use-ner`: Enable Chinese NER (requires foolnltk)
 - `--llm`: none | ollama | openai
-- `--model`: LLM model name (e.g., deepseek-r1:32b)
-- `--cache-dir`: Cache directory (default ./.cache)
-- `--verbose`: Show detailed processing information
-- `--debug`: LLM debug mode, show complete prompts and responses
+- `--use-ner`: Enable Chinese NER
+- `--verbose`: Show detailed progress
+- `--debug`: LLM debug mode
 
 ---
 
 ## 📂 Project Structure
 
-```bash
+```
 tender-extract/
-├── pyproject.toml                # uv/dependencies/script entry
-├── README.md
-├── config/
-│   └── example.yaml              # Regex and dictionary configuration
-├── data/dicts/
-│   └── keywords_zh.txt           # Keyword dictionary
+├── config/example.yaml           # Rule configuration
+├── data/dicts/keywords_zh.txt    # Keyword dictionary
 ├── examples/                     # Sample documents
-│   └── example.md
-├── out/                          # Output directory
-│   └── example.md.json
 └── src/tender_extract/
-    ├── cli.py                    # CLI (Typer)
-    ├── preprocess.py             # Markdown cleaning + chapter tree
-    ├── chunker.py                # Chapter priority + recursive slicing
-    ├── rules.py                  # Regex + keyword heuristic extraction
-    ├── ner.py                    # Optional: foolnltk
-    ├── dedupe.py                 # RapidFuzz + MinHash
-    ├── llm_router.py             # OpenAI / Ollama adapter
-    ├── merge.py                  # Field merging strategy
-    └── schema.py                 # Pydantic output model
+    ├── cli.py                    # CLI entry
+    ├── preprocess.py             # Markdown preprocessing
+    ├── rules.py                  # Rule extraction
+    ├── llm_router.py             # LLM routing
+    └── schema.py                 # Output model
 ```
 
 ---
 
-## ⚙️ Configuration & Extension
+## ⚙️ Configuration
 
-### Rules/Dictionary Configuration
+### Rule Configuration
 
-Edit `config/example.yaml` and `data/dicts/keywords_zh.txt`:
+Edit `config/example.yaml`:
 
 ```yaml
-# config/example.yaml
 patterns:
   date:
     - pattern: r'(\d{4}年\d{1,2}月\d{1,2}日)'
@@ -183,82 +127,50 @@ synonyms:
   - [法定代表人, 法人代表, 负责人]
 ```
 
-### NER Configuration
-
-Used with `--use-ner` to supplement organization/person/location entity candidates, can be fused with rule layer voting.
-
-### LLM Routing Configuration
-
-`src/tender_extract/llm_router.py` supports ollama; only triggered when fields have low confidence or conflicts.
-
 ---
 
 ## 🔍 How It Works
 
-1. **Preprocessing & Slicing**: Parse Markdown → chapter tree; recursive character splitting for long paragraphs (~600–800 tokens level)
-2. **Rule Layer Extraction**: Extract "hard fields" like amounts/dates/numbers/deposits/contact info first; multi-keyword phrases use Aho–Corasick linear scanning
-3. **Deduplication & Template Recognition**: RapidFuzz + MinHash LSH, reuse parsing results from template paragraphs
-4. **On-Demand LLM**: Only send "minimal evidence fragments" to LLM when low confidence/conflicts, using Structured Outputs/function calls for strict JSON
-
----
-
-## 📈 Performance Optimization Tips
-
-1. **Rules First, Models Later**: Rules/dictionary layer typically covers 60–90% of hard fields; LLM only supplements difficult cases
-2. **Control Fragment Length**: Chapter priority + minimal overlap recursive slicing
-3. **Build Cache**: Create fingerprints for fragment text (like MinHash), directly reuse extraction results for same/similar paragraphs
-4. **Parallelization**: Preprocessing, rule extraction, and similarity detection can be multi-processed; LLM uses small batch concurrency with rate limiting
-
----
-
-## 🎯 Use Cases
-
-- **Bidding Agencies**: Batch process tender documents, extract key information
-- **Evaluation Experts**: Quickly obtain core tender information, assist evaluation decisions
-- **Regulatory Bodies**: Automate tender compliance review
-- **Research Institutions**: Analyze tender data for market research
-- **Enterprise Bidding**: Quickly analyze competitor tender information
+1. **Preprocessing**: Parse Markdown chapter tree, recursive character splitting
+2. **Rule Extraction**: Regex + keywords extract hard fields
+3. **Deduplication**: MinHash LSH avoid duplicate processing
+4. **LLM Routing**: Send only low-confidence fragments to LLM
 
 ---
 
 ## 📊 Output Format
 
-Each document generates a corresponding JSON file containing:
-
 ```json
 {
   "metadata": {
     "filename": "example.md",
-    "file_size": 12345,
-    "total_lines": 500,
-    "total_chunks": 10,
     "processing_time": 2.31,
-    "extraction_stats": {
-      "total_fields": 24,
-      "avg_confidence": 0.85
-    }
+    "total_fields": 24
   },
   "fields": {
     "project_name": {
-      "field_type": "project_name",
       "primary_value": "Test Engineering Project",
       "confidence": 0.95,
-      "values": [
-        {
-          "value": "Test Engineering Project",
-          "confidence": 0.95,
-          "source": "rules",
-          "start": 100,
-          "end": 110
-        }
-      ]
+      "values": [{
+        "value": "Test Engineering Project",
+        "source": "rules",
+        "start": 100,
+        "end": 110
+      }]
     }
-  },
-  "chunks_processed": 10,
-  "llm_calls": 3,
-  "cache_hits": 2
+  }
 }
 ```
+
+---
+
+## 🎯 Use Cases
+
+- **Bidding Agencies**: Batch process tender documents
+- **Evaluation Experts**: Quickly obtain core tender information
+- **Regulatory Bodies**: Automate compliance review
+- **Research Institutions**: Tender data analysis
+- **Enterprise Bidding**: Competitor analysis
 
 ---
 
@@ -266,47 +178,21 @@ Each document generates a corresponding JSON file containing:
 
 ### Common Issues
 
-**1. Installation Failure**
 ```bash
-# Ensure correct Python version
-python --version  # Should be 3.12+
-
-# Reinstall dependencies
+# Installation failure
+python --version  # Ensure 3.12+
 uv sync --reinstall
-```
 
-**2. Ollama Connection Failure**
-```bash
-# Check Ollama service status
+# Ollama connection failure
 curl http://your-ollama-server:11434/api/tags
-
-# Set correct environment variables
 export OLLAMA_BASE_URL=http://your-ollama-server:11434
+
+# Debugging tips
+uv run tender-extract extract ./examples/ --out ./out --verbose --debug
 ```
-
-**3. NER Module Error**
-```bash
-# Reinstall NER dependencies
-uv sync --extra ner --reinstall
-```
-
-**4. Insufficient Memory**
-```bash
-# Reduce slice size
-uv run tender-extract extract ./examples/ --out ./out --llm none
-```
-
-### Debugging Tips
-
-1. **Use Verbose Mode**: Add `--verbose` parameter to view detailed logs
-2. **Enable Debug Mode**: Add `--debug` parameter to view complete LLM interactions
-3. **Check Configuration**: Ensure `config/example.yaml` format is correct
-4. **Review Output Files**: Check JSON files in `out/` directory
 
 ---
 
 ## 📝 License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
---- 
+MIT License - See [LICENSE](LICENSE) file for details. 
