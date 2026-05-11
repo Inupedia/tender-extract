@@ -210,7 +210,9 @@ __marimo__/
 
 examples/*
 !examples/example.md
+!examples/example.pdf
 
 out/*
 !out/example.md.json
+out_v2/
 

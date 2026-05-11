@@ -38,7 +38,33 @@
 
 ## 📊 性能表现
 
-<img src="./assets/1.jpg" alt="性能统计图表" style="width:300px; height:auto;" />
+### 真实招标文件抽取效果
+
+以公开的《合肥市公安局瑶海分局雪亮工程支网运维服务采购项目》招标文件（PDF，10页）为例：
+
+```bash
+$ uv run tender-extract extract-v2 ./examples/example.pdf --out ./out
+
+═══ 处理文件 1/1: example.pdf ═══
+  ✓ 解析完成: pdf → Markdown (8742 字符, 10 页)
+  ✓ 切块完成: 3 个切片
+  ✓ 模块路由: [投标递交]: 3, [投标人信息]: 2, [评标办法]: 1
+  ✓ 增强正则抽取...
+
+  ✅ 完成: 8 个字段, 平均置信度 0.90, 耗时 0.21s
+     project_name: 合肥市公安局瑶海分局雪亮工程支网 (置信度=0.95)
+     tenderer: 合肥市公安局瑶海分局 (置信度=0.95)
+     bid_amount: 437.677万元 (置信度=0.90)
+     bid_date: 2024年7月1日 (置信度=0.90)
+     project_number: 2024BFFFZ01583 (置信度=0.95)
+     contact_info: 0551-66223642 (置信度=0.95)
+```
+
+**核心指标**：
+- ⚡ 处理速度：10页PDF仅需 **0.21秒**
+- 🎯 平均置信度：**0.90**
+- 💰 零LLM成本：规则层覆盖所有字段
+- 📄 支持格式：PDF / DOCX / TXT / Markdown
 
 **抽取统计**：
 - 26种字段类型，平均每文档24.4个字段
@@ -53,13 +79,17 @@
 ### 安装
 
 ```bash
-# 克隆并安装
+# 克隆并安装（推荐：安装所有可选依赖）
 git clone <repository-url>
 cd tender-extract
-uv sync --extra cli
+uv sync --extra all
 
-# 可选：安装命名实体识别支持
-uv sync --extra ner
+# 或最小安装（仅 CLI + NER）
+uv sync --extra cli --extra ner
+
+# 可选：单独安装 PDF/DOCX 支持
+uv sync --extra pdf    # PDF 解析 (pymupdf)
+uv sync --extra docx   # DOCX 解析 (python-docx)
 
 # 验证安装
 uv run tender-extract --help
@@ -68,15 +98,19 @@ uv run tender-extract --help
 ### 基础用法
 
 ```bash
-# 仅规则抽取（最快）
+# v2 增强版：支持 PDF/DOCX/TXT/MD，模块化路由 + 增强正则
+uv run tender-extract extract-v2 ./招标文件.pdf --out ./out
+uv run tender-extract extract-v2 ./examples/ --out ./out --verbose
+
+# 经典版：仅规则抽取（最快，仅支持 Markdown）
 uv run tender-extract extract ./examples/ --out ./out --llm none
 
 # 启用大语言模型（需要API密钥）
 export OPENAI_API_KEY=your-api-key
-uv run tender-extract extract ./examples/ --out ./out --llm openai --model gpt-4o-mini
+uv run tender-extract extract-v2 ./examples/ --out ./out --llm openai --model gpt-4o-mini
 
 # 本地Ollama
-uv run tender-extract extract ./examples/ --out ./out --llm ollama --model deepseek-r1:32b
+uv run tender-extract extract-v2 ./examples/ --out ./out --llm ollama --model deepseek-r1:32b
 ```
 
 ### 主要参数
@@ -96,13 +130,21 @@ uv run tender-extract extract ./examples/ --out ./out --llm ollama --model deeps
 tender-extract/
 ├── config/example.yaml           # 规则配置
 ├── data/dicts/keywords_zh.txt    # 关键词词典
-├── examples/                     # 示例文档
+├── examples/                     # 示例文档 (MD/PDF/DOCX)
 └── src/tender_extract/
-    ├── cli.py                    # 命令行接口入口
-    ├── preprocess.py             # Markdown预处理
-    ├── rules.py                  # 规则抽取
-    ├── llm_router.py             # 大语言模型路由
-    └── schema.py                 # 输出模型
+    ├── cli.py                    # 命令行接口（extract + extract-v2）
+    ├── document_parser.py        # [新] 文档解析层（PDF/DOCX→Markdown）
+    ├── module_router.py          # [新] 模块化路由层
+    ├── extraction_engine.py      # [新] 增强抽取引擎（多方法竞争）
+    ├── patterns.py               # [新] 增强正则模式库（分层置信度）
+    ├── preprocess.py             # Markdown预处理 + 章节树
+    ├── chunker.py                # 智能切块（LangChain）
+    ├── rules.py                  # 经典规则抽取
+    ├── ner.py                    # NER实体识别
+    ├── dedupe.py                 # 去重引擎
+    ├── llm_router.py             # LLM按需路由
+    ├── merge.py                  # 结果合并
+    └── schema.py                 # Pydantic数据模型
 ```
 
 ---
@@ -130,6 +172,21 @@ synonyms:
 ---
 
 ## 🔍 工作原理
+
+### v2 增强流水线（推荐）
+
+```
+输入(PDF/DOCX/MD) → ① 解析层 → ② 切块层 → ③ 模块路由 → ④ 抽取层 → ⑤ 合并输出
+                     (PyMuPDF)  (LangChain)  (关键词匹配)  (Regex+NER+LLM)  (JSON)
+```
+
+1. **解析层**：PDF/DOCX/TXT 统一转 Markdown，保留标题层级和表格
+2. **切块层**：按章节切分，LangChain递归字符切片
+3. **模块路由**：按关键词将切片路由到9个专业模块（基础信息/财务/资质/评标等）
+4. **抽取层**：增强正则（分层置信度）+ NER + 按需LLM
+5. **合并输出**：去重、冲突检测、跨字段验证
+
+### 经典流水线
 
 1. **预处理**：解析Markdown章节树，递归字符切分
 2. **规则抽取**：正则表达式+关键词提取硬字段

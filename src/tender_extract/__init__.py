@@ -1,8 +1,10 @@
 """
 tender-extract: 面向中文标书的混合抽取流水线
+
+架构：解析层 → 切块层 → 路由层 → 抽取层(Regex+NER+LLM) → 合并层
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Tender Extract Team"
 
 from .schema import (
@@ -21,10 +23,14 @@ from .dedupe import DeduplicationEngine
 from .llm_router import LLMRouter
 from .merge import FieldMerger
 from .cli import TenderExtractor
+from .document_parser import DocumentParser, ParsedDocument
+from .module_router import ModuleRouter, RoutedChunk, TENDER_MODULES
+from .extraction_engine import ExtractionEngine
+from .patterns import FIELD_PATTERNS
 
 __all__ = [
     "EvidenceSpan",
-    "ExtractedField", 
+    "ExtractedField",
     "DocumentMetadata",
     "ExtractionResult",
     "ProcessingConfig",
@@ -36,5 +42,13 @@ __all__ = [
     "DeduplicationEngine",
     "LLMRouter",
     "FieldMerger",
-    "TenderExtractor"
+    "TenderExtractor",
+    # New modules
+    "DocumentParser",
+    "ParsedDocument",
+    "ModuleRouter",
+    "RoutedChunk",
+    "TENDER_MODULES",
+    "ExtractionEngine",
+    "FIELD_PATTERNS",
 ] 
