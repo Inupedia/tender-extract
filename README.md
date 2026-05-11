@@ -53,13 +53,17 @@
 ### 安装
 
 ```bash
-# 克隆并安装
+# 克隆并安装（推荐：安装所有可选依赖）
 git clone <repository-url>
 cd tender-extract
-uv sync --extra cli
+uv sync --extra all
 
-# 可选：安装命名实体识别支持
-uv sync --extra ner
+# 或最小安装（仅 CLI + NER）
+uv sync --extra cli --extra ner
+
+# 可选：单独安装 PDF/DOCX 支持
+uv sync --extra pdf    # PDF 解析 (pymupdf)
+uv sync --extra docx   # DOCX 解析 (python-docx)
 
 # 验证安装
 uv run tender-extract --help
@@ -68,15 +72,19 @@ uv run tender-extract --help
 ### 基础用法
 
 ```bash
-# 仅规则抽取（最快）
+# v2 增强版：支持 PDF/DOCX/TXT/MD，模块化路由 + 增强正则
+uv run tender-extract extract-v2 ./招标文件.pdf --out ./out
+uv run tender-extract extract-v2 ./examples/ --out ./out --verbose
+
+# 经典版：仅规则抽取（最快，仅支持 Markdown）
 uv run tender-extract extract ./examples/ --out ./out --llm none
 
 # 启用大语言模型（需要API密钥）
 export OPENAI_API_KEY=your-api-key
-uv run tender-extract extract ./examples/ --out ./out --llm openai --model gpt-4o-mini
+uv run tender-extract extract-v2 ./examples/ --out ./out --llm openai --model gpt-4o-mini
 
 # 本地Ollama
-uv run tender-extract extract ./examples/ --out ./out --llm ollama --model deepseek-r1:32b
+uv run tender-extract extract-v2 ./examples/ --out ./out --llm ollama --model deepseek-r1:32b
 ```
 
 ### 主要参数
@@ -96,13 +104,21 @@ uv run tender-extract extract ./examples/ --out ./out --llm ollama --model deeps
 tender-extract/
 ├── config/example.yaml           # 规则配置
 ├── data/dicts/keywords_zh.txt    # 关键词词典
-├── examples/                     # 示例文档
+├── examples/                     # 示例文档 (MD/PDF/DOCX)
 └── src/tender_extract/
-    ├── cli.py                    # 命令行接口入口
-    ├── preprocess.py             # Markdown预处理
-    ├── rules.py                  # 规则抽取
-    ├── llm_router.py             # 大语言模型路由
-    └── schema.py                 # 输出模型
+    ├── cli.py                    # 命令行接口（extract + extract-v2）
+    ├── document_parser.py        # [新] 文档解析层（PDF/DOCX→Markdown）
+    ├── module_router.py          # [新] 模块化路由层
+    ├── extraction_engine.py      # [新] 增强抽取引擎（多方法竞争）
+    ├── patterns.py               # [新] 增强正则模式库（分层置信度）
+    ├── preprocess.py             # Markdown预处理 + 章节树
+    ├── chunker.py                # 智能切块（LangChain）
+    ├── rules.py                  # 经典规则抽取
+    ├── ner.py                    # NER实体识别
+    ├── dedupe.py                 # 去重引擎
+    ├── llm_router.py             # LLM按需路由
+    ├── merge.py                  # 结果合并
+    └── schema.py                 # Pydantic数据模型
 ```
 
 ---

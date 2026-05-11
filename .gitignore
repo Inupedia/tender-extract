@@ -213,4 +213,5 @@ examples/*
 
 out/*
 !out/example.md.json
+out_v2/
 

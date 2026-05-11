@@ -882,5 +882,275 @@ def _generate_summary(extraction_result: ExtractionResult, output_path: str):
     return summary_file, text_file
 
 
+@app.command()
+def extract_v2(
+    input_path: str = typer.Argument(..., help="输入文件或目录路径（支持 PDF/DOCX/MD/TXT）"),
+    out: str = typer.Option("./out", "--out", "-o", help="输出目录"),
+    config: str = typer.Option("./config/example.yaml", "--config", "-c", help="配置文件路径"),
+    use_ner: bool = typer.Option(False, "--use-ner", help="启用NER"),
+    llm: str = typer.Option("none", "--llm", help="LLM提供商：none/ollama/openai"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="LLM模型名称"),
+    pattern: str = typer.Option("*", "--pattern", "-p", help="文件匹配模式（默认所有支持格式）"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="详细输出"),
+    debug: bool = typer.Option(False, "--debug", help="调试模式"),
+    use_modules: bool = typer.Option(True, "--modules/--no-modules", help="启用模块化路由"),
+):
+    """
+    增强版抽取（v2）：支持 PDF/DOCX 输入 + 模块化路由 + 增强正则
+
+    核心改进：
+    1. 解析层：自动检测文件格式，PDF/DOCX/TXT/MD 统一转 Markdown
+    2. 路由层：按章节内容路由到专业模块（基础信息/财务/资质/评标等）
+    3. 抽取层：增强正则模式库 + 分层置信度 + 多方法竞争
+    4. 仅低置信片段路由 LLM
+    """
+    from .document_parser import DocumentParser
+    from .module_router import ModuleRouter
+    from .extraction_engine import ExtractionEngine
+
+    # 设置日志
+    if verbose or debug:
+        import logging as _logging
+        _logging.basicConfig(
+            level=_logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+
+    # 初始化组件
+    parser = DocumentParser()
+    router = ModuleRouter()
+    engine = ExtractionEngine()
+
+    input_path_obj = Path(input_path)
+    if not input_path_obj.exists():
+        console.print(f"[red]错误：输入路径不存在 {input_path}[/red]")
+        sys.exit(1)
+
+    out_path = Path(out)
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    # 获取文件列表
+    supported_exts = parser.get_supported_extensions()
+    if input_path_obj.is_file():
+        files = [input_path_obj]
+    else:
+        if pattern == "*":
+            files = [
+                f for f in input_path_obj.iterdir()
+                if f.suffix.lower() in supported_exts
+            ]
+        else:
+            files = list(input_path_obj.glob(pattern))
+
+    if not files:
+        console.print(f"[yellow]未找到支持的文件。支持格式: {supported_exts}[/yellow]")
+        return
+
+    console.print(f"[green]找到 {len(files)} 个文件[/green]")
+    console.print(f"[blue]支持格式: {', '.join(sorted(supported_exts))}[/blue]")
+    if use_modules:
+        console.print("[blue]模块化路由: 已启用[/blue]")
+
+    results = []
+    total_start = time.time()
+
+    for i, file_path in enumerate(files):
+        console.print(f"\n[bold cyan]═══ 处理文件 {i+1}/{len(files)}: {file_path.name} ═══[/bold cyan]")
+        file_start = time.time()
+
+        try:
+            # ---- 步骤1: 文档解析 ----
+            console.print("[dim]  ① 解析文档...[/dim]")
+            parsed_doc = parser.parse(str(file_path))
+            console.print(
+                f"  [green]✓[/green] 解析完成: {parsed_doc.original_format} → Markdown "
+                f"({len(parsed_doc.content)} 字符"
+                f"{f', {parsed_doc.total_pages} 页' if parsed_doc.total_pages else ''})"
+            )
+
+            # ---- 步骤2: 切块 ----
+            console.print("[dim]  ② 智能切块...[/dim]")
+            chunker = DocumentChunker(ChunkingConfig(
+                max_tokens=800,
+                overlap_tokens=100,
+                min_chunk_tokens=200
+            ))
+            chunks = chunker.chunk_document(parsed_doc.content, parsed_doc.filename)
+            console.print(f"  [green]✓[/green] 切块完成: {len(chunks)} 个切片")
+
+            # ---- 步骤3: 模块路由 ----
+            if use_modules:
+                console.print("[dim]  ③ 模块路由...[/dim]")
+                routed_chunks = router.route_chunks(chunks)
+                routing_summary = router.get_routing_summary(routed_chunks)
+                for module_name, count in routing_summary['module_distribution'].items():
+                    console.print(f"     [{module_name}]: {count} 个切片")
+            else:
+                routed_chunks = None
+
+            # ---- 步骤4: 增强抽取 ----
+            console.print("[dim]  ④ 增强正则抽取...[/dim]")
+            all_fields = {}
+
+            # 始终对所有 chunk 运行完整抽取（确保不遗漏字段）
+            for chunk in chunks:
+                chunk_fields = engine.extract_all_fields(chunk.content)
+                for fname, ffield in chunk_fields.items():
+                    if fname not in all_fields:
+                        all_fields[fname] = ffield
+                    else:
+                        all_fields[fname].values.extend(ffield.values)
+                        if ffield.confidence > all_fields[fname].confidence:
+                            all_fields[fname].confidence = ffield.confidence
+                            all_fields[fname].primary_value = ffield.primary_value
+
+            # 同时使用原有规则引擎补充抽取
+            rule_extractor = RuleExtractor("config/example.yaml")
+            for chunk in chunks:
+                rule_fields = rule_extractor.extract_fields(chunk.content)
+                for fname, ffield in rule_fields.items():
+                    if fname not in all_fields:
+                        all_fields[fname] = ffield
+                    elif ffield.confidence > all_fields[fname].confidence:
+                        all_fields[fname].values.extend(ffield.values)
+                        all_fields[fname].confidence = ffield.confidence
+                        all_fields[fname].primary_value = ffield.primary_value
+
+            # ---- 步骤5: NER 补充（可选）----
+            if use_ner:
+                console.print("[dim]  ⑤ NER抽取...[/dim]")
+                ner_extractor = NERExtractor(use_foolnltk=True)
+                ner_fields = ner_extractor.extract_entities(
+                    parsed_doc.content[:5000], parsed_doc.content
+                )
+                for fname, ffield in ner_fields.items():
+                    if fname not in all_fields:
+                        all_fields[fname] = ffield
+                    else:
+                        all_fields[fname].values.extend(ffield.values)
+                console.print(f"  [green]✓[/green] NER补充: {len(ner_fields)} 种实体")
+
+            # ---- 步骤6: LLM 路由（仅低置信） ----
+            low_conf_fields = engine.get_low_confidence_fields(all_fields)
+            llm_calls = 0
+            if llm != "none" and low_conf_fields:
+                console.print(
+                    f"[dim]  ⑥ LLM路由 ({len(low_conf_fields)} 个低置信字段)...[/dim]"
+                )
+                # 此处复用原有 LLM 路由逻辑
+                import yaml
+                try:
+                    with open(config, 'r', encoding='utf-8') as f:
+                        yaml_config = yaml.safe_load(f)
+                        ollama_base_url = yaml_config.get('llm', {}).get('ollama_base_url', None)
+                except Exception:
+                    ollama_base_url = None
+
+                llm_router = LLMRouter(
+                    provider=llm, model=model,
+                    base_url=ollama_base_url, debug_mode=debug
+                )
+                for fname in low_conf_fields:
+                    if fname in all_fields:
+                        field = all_fields[fname]
+                        if llm_router.should_use_llm(field, 0.7):
+                            from .schema import LLMRequest
+                            context = field.values[0].ref if field.values and field.values[0].ref else ""
+                            llm_req = LLMRequest(
+                                chunk_text=context or parsed_doc.content[:500],
+                                field_name=fname,
+                                field_type=field.field_type
+                            )
+                            llm_resp = llm_router.extract_with_llm(llm_req)
+                            if llm_resp:
+                                all_fields[fname] = llm_router.merge_llm_results(field, llm_resp)
+                                llm_calls += 1
+                if llm_calls:
+                    console.print(f"  [green]✓[/green] LLM处理: {llm_calls} 次调用")
+
+            # ---- 构建结果 ----
+            processing_time = time.time() - file_start
+            file_info = Path(file_path)
+
+            metadata = DocumentMetadata(
+                filename=file_info.name,
+                file_size=file_info.stat().st_size,
+                total_lines=len(parsed_doc.content.split('\n')),
+                total_chunks=len(chunks),
+                processing_time=processing_time,
+                extraction_stats={
+                    'total_fields': len(all_fields),
+                    'fields_by_type': {f: 1 for f in all_fields.keys()},
+                    'avg_confidence': (
+                        sum(f.confidence for f in all_fields.values()) / len(all_fields)
+                        if all_fields else 0
+                    ),
+                    'low_confidence_count': len(low_conf_fields),
+                    'modules_used': (
+                        list(routing_summary['module_distribution'].keys())
+                        if use_modules else []
+                    ),
+                }
+            )
+
+            result = ExtractionResult(
+                metadata=metadata,
+                fields=all_fields,
+                chunks_processed=len(chunks),
+                llm_calls=llm_calls,
+                cache_hits=0,
+                errors=[],
+                warnings=[]
+            )
+            results.append(result)
+
+            # 显示摘要
+            console.print(f"\n  [bold green]✅ 完成[/bold green]: "
+                         f"{len(all_fields)} 个字段, "
+                         f"平均置信度 {metadata.extraction_stats['avg_confidence']:.2f}, "
+                         f"耗时 {processing_time:.2f}s")
+
+            # 显示提取的关键字段
+            priority_display = [
+                'project_name', 'bidder', 'bid_amount', 'deposit',
+                'legal_representative', 'bid_date', 'project_number'
+            ]
+            for fname in priority_display:
+                if fname in all_fields:
+                    f = all_fields[fname]
+                    conf_color = "green" if f.confidence >= 0.9 else (
+                        "yellow" if f.confidence >= 0.7 else "red"
+                    )
+                    console.print(
+                        f"     {fname}: [{conf_color}]{f.primary_value}[/{conf_color}] "
+                        f"(置信度={f.confidence:.2f})"
+                    )
+
+        except Exception as e:
+            console.print(f"[red]❌ 处理失败 {file_path}: {e}[/red]")
+            if debug:
+                import traceback
+                traceback.print_exc()
+
+    # 保存结果
+    for result in results:
+        output_file = out_path / f"{result.metadata.filename}.json"
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(result.dict(), f, ensure_ascii=False, indent=2)
+        console.print(f"[green]💾 结果已保存: {output_file}[/green]")
+
+    # 总体统计
+    total_time = time.time() - total_start
+    total_fields = sum(len(r.fields) for r in results)
+    console.print(Panel.fit(
+        f"[bold]处理完成！[/bold]\n"
+        f"文件数：{len(results)}\n"
+        f"总字段数：{total_fields}\n"
+        f"总耗时：{total_time:.2f}秒\n"
+        f"平均每文件：{total_time/len(results):.2f}秒" if results else "无结果",
+        title="v2 处理摘要"
+    ))
+
+
 if __name__ == "__main__":
     app() 
