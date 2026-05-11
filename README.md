@@ -43,8 +43,10 @@
 | 功能 | 说明 |
 |------|------|
 | PDF/DOCX 解析 | 通过 PyMuPDF/python-docx 解析，基于字体大小推断标题，提取表格 |
+| 扫描件 OCR | PaddleOCR 智能识别扫描页（自动检测文字页 vs 扫描页） |
 | 模块化路由 | 不全文直抽，按标题切块后路由到专业模块，每个模块独立定义输出 Schema |
 | 增强正则模式库 | 50+ 精确模式，分层置信度(0.95/0.8/0.6)，大写金额、统一社会信用代码等 |
+| 人员信息抽取 | 身份证号、姓名+职务、学历、专业证书编号、有效期（支持表格和散落文本） |
 | 多方法竞争 | 同一字段多种抽取方式并行，按置信度选择最佳结果 |
 | 跨字段验证 | 保证金不超过投标金额等逻辑校验 |
 | 真实示例文档 | 包含公开的政府采购招标文件 PDF 作为示例 |
@@ -85,6 +87,35 @@ $ uv run tender-extract extract-v2 ./examples/example.pdf --out ./out
 - 中频：经营范围、投标金额、营业执照
 - 低频：注册资本、股东信息、项目经理
 
+### 人员信息抽取效果
+
+自动从标书中提取分散在不同位置的人员信息（表格 + 正文 + 扫描件 OCR）：
+
+```
+找到 3 人:
+1. 张建国 (项目经理) 身份证:420102****2718
+2. 李明辉 (技术负责人) 身份证:320106****0035 硕士/结构工程
+3. 王晓东 (安全员) 身份证:510103****3456
+
+找到 4 个证书:
+  [建造师] 鄂142011203456
+  [工程师职称] 苏高工2019-03456
+  [安全B证] 鄂建安B(2021)0045678
+  [有效期] 2027年12月31日
+```
+
+**支持的人员信息类型**：
+- 📋 身份证号码（18位/15位，含校验位验证）
+- 👤 姓名 + 职务角色（项目经理/技术负责人/安全员等）
+- 🎓 学历、毕业院校、专业
+- 📜 建造师/工程师/安全员等证书编号
+- 📅 证书有效期
+- 🏢 从资质表格中批量提取
+
+**OCR 策略**（处理扫描件）：
+- 逐页智能检测：文字页用 PyMuPDF（快），扫描页用 PaddleOCR（准）
+- 支持身份证、毕业证、资格证书扫描件的文字识别
+
 ---
 
 ## 🛠️ 快速开始
@@ -100,9 +131,10 @@ uv sync --extra all
 # 或最小安装（仅 CLI + NER）
 uv sync --extra cli --extra ner
 
-# 可选：单独安装 PDF/DOCX 支持
+# 可选：单独安装
 uv sync --extra pdf    # PDF 解析 (pymupdf)
 uv sync --extra docx   # DOCX 解析 (python-docx)
+uv sync --extra ocr    # 扫描件 OCR (paddlepaddle + paddleocr)
 
 # 验证安装
 uv run tender-extract --help
@@ -148,10 +180,11 @@ tender-extract/
 │   └── example.pdf               # 真实招标文件（合肥市政府采购项目）
 └── src/tender_extract/
     ├── cli.py                    # 命令行接口（extract / extract-v2）
-    ├── document_parser.py        # 文档解析层（PDF/DOCX → Markdown）
+    ├── document_parser.py        # 文档解析层（PDF/DOCX → Markdown + OCR）
     ├── module_router.py          # 模块化路由层（9个专业模块）
     ├── extraction_engine.py      # 增强抽取引擎（多方法竞争+置信度）
     ├── patterns.py               # 正则模式库（分层置信度）
+    ├── personnel_extractor.py    # 人员信息专项抽取（身份证/证书/学历）
     ├── preprocess.py             # Markdown 预处理 + 章节树构建
     ├── chunker.py                # 智能切块（LangChain 分割器）
     ├── rules.py                  # 规则抽取（正则+Aho-Corasick关键词）

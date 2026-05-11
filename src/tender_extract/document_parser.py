@@ -34,6 +34,13 @@ except ImportError:
     PYTHON_DOCX_AVAILABLE = False
     logger.info("python-docx未安装，DOCX解析将不可用。安装: pip install python-docx")
 
+try:
+    from paddleocr import PaddleOCR
+    PADDLEOCR_AVAILABLE = True
+except ImportError:
+    PADDLEOCR_AVAILABLE = False
+    logger.info("paddleocr未安装，OCR功能将不可用。安装: pip install paddlepaddle paddleocr")
+
 
 @dataclass
 class ParsedDocument:
@@ -53,13 +60,28 @@ class DocumentParser:
 
     支持格式：
     - PDF: 通过 PyMuPDF 解析，提取文本和表格
+    - PDF (扫描件): 通过 PaddleOCR 识别文字
     - DOCX: 通过 python-docx 解析，保留标题层级
     - TXT/MD: 直接读取
+
+    智能检测策略：
+    - 逐页判断是文字页还是扫描页
+    - 文字页用 PyMuPDF 直接提取（快）
+    - 扫描页/图片页用 PaddleOCR 识别（准）
     """
 
     SUPPORTED_EXTENSIONS = {'.pdf', '.docx', '.doc', '.txt', '.md', '.markdown'}
 
-    def __init__(self):
+    # 扫描页判定阈值：每页文字少于此字符数视为扫描页
+    SCANNED_PAGE_THRESHOLD = 50
+
+    def __init__(self, use_ocr: bool = True):
+        """
+        Args:
+            use_ocr: 是否启用 OCR（对扫描页自动调用 PaddleOCR）
+        """
+        self.use_ocr = use_ocr and PADDLEOCR_AVAILABLE
+        self._ocr_engine = None
         self._check_dependencies()
 
     def _check_dependencies(self):
@@ -69,6 +91,80 @@ class DocumentParser:
             self.available_formats.add('.pdf')
         if PYTHON_DOCX_AVAILABLE:
             self.available_formats.update({'.docx', '.doc'})
+
+    def _get_ocr_engine(self):
+        """懒加载 OCR 引擎（首次使用时初始化，避免无需时的开销）"""
+        if self._ocr_engine is None and self.use_ocr:
+            logger.info("初始化 PaddleOCR 引擎...")
+            self._ocr_engine = PaddleOCR(
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False,
+                use_textline_orientation=False,
+            )
+        return self._ocr_engine
+
+    def _is_scanned_page(self, page) -> bool:
+        """判断一页是否为扫描页（无可提取文字或文字过少）"""
+        text = page.get_text("text").strip()
+        # 文字少于阈值 → 视为扫描页
+        if len(text) < self.SCANNED_PAGE_THRESHOLD:
+            return True
+        # 如果页面有图片且文字很少，也可能是扫描件
+        images = page.get_images(full=True)
+        if images and len(text) < self.SCANNED_PAGE_THRESHOLD * 3:
+            # 检查图片面积占比
+            page_area = page.rect.width * page.rect.height
+            for img in images:
+                xref = img[0]
+                try:
+                    img_rect = page.get_image_bbox(xref)
+                    img_area = img_rect.width * img_rect.height
+                    if img_area > page_area * 0.5:  # 图片占页面50%以上
+                        return True
+                except Exception:
+                    pass
+        return False
+
+    def _ocr_page(self, page) -> str:
+        """对单页进行 OCR 识别"""
+        ocr = self._get_ocr_engine()
+        if ocr is None:
+            return ""
+
+        # 将页面渲染为图片
+        pix = page.get_pixmap(dpi=200)
+        img_bytes = pix.tobytes("png")
+
+        # 保存临时文件供 PaddleOCR 处理
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+            tmp.write(img_bytes)
+            tmp_path = tmp.name
+
+        try:
+            result = ocr.predict(tmp_path)
+            lines = []
+            for res in result:
+                if hasattr(res, 'rec_texts'):
+                    lines.extend(res.rec_texts)
+                elif isinstance(res, dict) and 'rec_texts' in res:
+                    lines.extend(res['rec_texts'])
+                else:
+                    # 兼容不同版本的输出格式
+                    try:
+                        for item in res:
+                            if hasattr(item, 'rec_texts'):
+                                lines.extend(item.rec_texts)
+                            elif isinstance(item, dict) and 'text' in item:
+                                lines.append(item['text'])
+                    except (TypeError, AttributeError):
+                        pass
+            return "\n".join(lines)
+        except Exception as e:
+            logger.warning(f"OCR 识别失败: {e}")
+            return ""
+        finally:
+            os.unlink(tmp_path)
 
     def can_parse(self, file_path: str) -> bool:
         """检查是否能解析指定文件"""
@@ -112,47 +208,68 @@ class DocumentParser:
         """
         解析 PDF 文件
 
-        使用 PyMuPDF 提取文本，保留结构信息：
-        - 检测标题（基于字体大小和加粗）
-        - 提取表格
-        - 保留段落结构
+        智能策略：
+        - 逐页判断是文字页还是扫描页
+        - 文字页：PyMuPDF 直接提取（快速）
+        - 扫描页：PaddleOCR 识别文字（准确）
+        - 同时提取表格结构
         """
         doc = pymupdf.open(file_path)
         pages_content = []
         all_tables = []
         markdown_parts = []
+        ocr_pages = 0
 
         for page_num, page in enumerate(doc):
-            page_text = page.get_text("text")
-            pages_content.append(page_text)
+            is_scanned = self._is_scanned_page(page)
 
-            # 提取表格
-            tables = page.find_tables()
-            for table in tables:
-                table_data = table.extract()
-                if table_data:
-                    all_tables.append({
-                        'page': page_num + 1,
-                        'data': table_data
-                    })
-                    markdown_parts.append(self._table_to_markdown(table_data))
+            if is_scanned and self.use_ocr:
+                # 扫描页 → OCR 识别
+                ocr_pages += 1
+                logger.info(f"  第{page_num+1}页: 扫描页，使用 OCR 识别")
+                ocr_text = self._ocr_page(page)
+                pages_content.append(ocr_text)
+                markdown_parts.append(f"<!-- OCR page {page_num+1} -->\n{ocr_text}")
+            else:
+                # 文字页 → PyMuPDF 直接提取
+                page_text = page.get_text("text")
+                pages_content.append(page_text)
 
-            # 使用字典模式获取带格式信息的文本块
-            blocks = page.get_text("dict")["blocks"]
-            page_markdown = self._blocks_to_markdown(blocks, page_num + 1)
-            markdown_parts.append(page_markdown)
+                # 提取表格
+                tables = page.find_tables()
+                for table in tables:
+                    table_data = table.extract()
+                    if table_data:
+                        all_tables.append({
+                            'page': page_num + 1,
+                            'data': table_data
+                        })
+                        markdown_parts.append(self._table_to_markdown(table_data))
+
+                # 使用字典模式获取带格式信息的文本块
+                blocks = page.get_text("dict")["blocks"]
+                page_markdown = self._blocks_to_markdown(blocks, page_num + 1)
+                markdown_parts.append(page_markdown)
 
         doc.close()
 
         content = "\n\n".join(markdown_parts)
         content = self._clean_pdf_content(content)
 
+        metadata = {
+            'page_count': len(pages_content),
+            'ocr_pages': ocr_pages,
+            'text_pages': len(pages_content) - ocr_pages,
+        }
+        if ocr_pages > 0:
+            logger.info(f"  OCR 统计: {ocr_pages} 页扫描件已识别")
+
         return ParsedDocument(
             content=content,
             filename=Path(file_path).name,
             original_format='pdf',
             total_pages=len(pages_content),
-            metadata={'page_count': len(pages_content)},
+            metadata=metadata,
             tables=all_tables,
             page_contents=pages_content
         )

@@ -1019,6 +1019,26 @@ def extract_v2(
                         all_fields[fname].values.extend(ffield.values)
                 console.print(f"  [green]✓[/green] NER补充: {len(ner_fields)} 种实体")
 
+            # ---- 步骤5b: 人员信息专项抽取 ----
+            console.print("[dim]  ⑤b 人员信息抽取...[/dim]")
+            from .personnel_extractor import PersonnelExtractor
+            pe = PersonnelExtractor()
+            personnel = pe.extract_personnel(parsed_doc.content)
+            certificates = pe.extract_certificates(parsed_doc.content)
+            if personnel:
+                console.print(f"  [green]✓[/green] 人员信息: {len(personnel)} 人")
+                for p in personnel[:5]:  # 显示前5个
+                    info_parts = [p.name]
+                    if p.role:
+                        info_parts.append(f"({p.role})")
+                    if p.id_card:
+                        info_parts.append(f"身份证:{p.id_card[:6]}****{p.id_card[-4:]}")
+                    console.print(f"     {''.join(info_parts)}")
+            if certificates:
+                console.print(f"  [green]✓[/green] 证书信息: {len(certificates)} 个")
+                for c in certificates[:3]:
+                    console.print(f"     [{c.cert_type}] {c.cert_number}")
+
             # ---- 步骤6: LLM 路由（仅低置信） ----
             low_conf_fields = engine.get_low_confidence_fields(all_fields)
             llm_calls = 0
@@ -1079,6 +1099,8 @@ def extract_v2(
                         list(routing_summary['module_distribution'].keys())
                         if use_modules else []
                     ),
+                    'personnel_count': len(personnel) if personnel else 0,
+                    'certificates_count': len(certificates) if certificates else 0,
                 }
             )
 
@@ -1124,8 +1146,34 @@ def extract_v2(
     # 保存结果
     for result in results:
         output_file = out_path / f"{result.metadata.filename}.json"
+        # 构建完整输出（包含人员信息）
+        output_data = result.dict()
+        # 人员信息单独保存（如果有）
+        if personnel:
+            output_data['personnel'] = [
+                {
+                    'name': p.name,
+                    'role': p.role,
+                    'id_card': p.id_card,
+                    'education': p.education,
+                    'major': p.major,
+                    'graduation_school': p.graduation_school,
+                    'certificates': p.certificates,
+                    'confidence': p.confidence,
+                } for p in personnel
+            ]
+        if certificates:
+            output_data['certificates'] = [
+                {
+                    'cert_type': c.cert_type,
+                    'cert_number': c.cert_number,
+                    'holder_name': c.holder_name,
+                    'level': c.level,
+                    'major': c.major,
+                } for c in certificates
+            ]
         with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(result.dict(), f, ensure_ascii=False, indent=2)
+            json.dump(output_data, f, ensure_ascii=False, indent=2)
         console.print(f"[green]💾 结果已保存: {output_file}[/green]")
 
     # 总体统计

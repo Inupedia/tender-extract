@@ -147,19 +147,23 @@ TENDER_MODULES = [
     ModuleDefinition(
         module_id="personnel",
         name="人员要求",
-        description="项目负责人、技术人员、团队要求",
+        description="项目负责人、技术人员、团队要求、身份证、证书",
         keywords=[
             "项目经理", "项目负责人", "技术负责人",
-            "总工程师", "安全员", "质检员",
-            "拟派人员", "主要人员", "团队",
+            "总工程师", "安全员", "质检员", "施工员", "造价师",
+            "拟派人员", "主要人员", "团队", "人员配备",
             "职称", "资格证书", "执业资格",
             "建造师", "工程师", "技术员",
+            "身份证", "证件号", "学历", "毕业",
+            "安全生产考核", "安全B证", "安全C证",
+            "注册证书", "执业证书", "从业资格",
+            "社保", "社会保险",
         ],
         target_fields=[
             "project_manager", "technical_staff",
-            "team_requirements"
+            "team_requirements", "personnel_info"
         ],
-        priority=4
+        priority=3
     ),
     ModuleDefinition(
         module_id="company_info",

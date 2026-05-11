@@ -27,6 +27,7 @@ from .document_parser import DocumentParser, ParsedDocument
 from .module_router import ModuleRouter, RoutedChunk, TENDER_MODULES
 from .extraction_engine import ExtractionEngine
 from .patterns import FIELD_PATTERNS
+from .personnel_extractor import PersonnelExtractor, PersonnelInfo, CertificateInfo
 
 __all__ = [
     "EvidenceSpan",
@@ -51,4 +52,7 @@ __all__ = [
     "TENDER_MODULES",
     "ExtractionEngine",
     "FIELD_PATTERNS",
+    "PersonnelExtractor",
+    "PersonnelInfo",
+    "CertificateInfo",
 ] 
