@@ -992,29 +992,18 @@ def extract_v2(
             console.print("[dim]  ④ 增强正则抽取...[/dim]")
             all_fields = {}
 
-            # 始终对所有 chunk 运行完整抽取（确保不遗漏字段）
+            # 对所有 chunk 运行增强正则抽取引擎
             for chunk in chunks:
                 chunk_fields = engine.extract_all_fields(chunk.content)
                 for fname, ffield in chunk_fields.items():
                     if fname not in all_fields:
                         all_fields[fname] = ffield
                     else:
+                        # 合并值，保留最高置信度
                         all_fields[fname].values.extend(ffield.values)
                         if ffield.confidence > all_fields[fname].confidence:
                             all_fields[fname].confidence = ffield.confidence
                             all_fields[fname].primary_value = ffield.primary_value
-
-            # 同时使用原有规则引擎补充抽取
-            rule_extractor = RuleExtractor("config/example.yaml")
-            for chunk in chunks:
-                rule_fields = rule_extractor.extract_fields(chunk.content)
-                for fname, ffield in rule_fields.items():
-                    if fname not in all_fields:
-                        all_fields[fname] = ffield
-                    elif ffield.confidence > all_fields[fname].confidence:
-                        all_fields[fname].values.extend(ffield.values)
-                        all_fields[fname].confidence = ffield.confidence
-                        all_fields[fname].primary_value = ffield.primary_value
 
             # ---- 步骤5: NER 补充（可选）----
             if use_ner:
@@ -1112,8 +1101,8 @@ def extract_v2(
 
             # 显示提取的关键字段
             priority_display = [
-                'project_name', 'bidder', 'bid_amount', 'deposit',
-                'legal_representative', 'bid_date', 'project_number'
+                'project_name', 'tenderer', 'bidder', 'bid_amount', 'deposit',
+                'legal_representative', 'bid_date', 'project_number', 'contact_info'
             ]
             for fname in priority_display:
                 if fname in all_fields:

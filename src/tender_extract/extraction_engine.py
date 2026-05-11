@@ -162,8 +162,8 @@ class ExtractionEngine:
         # 数字金额标准化
         # 移除千分位逗号
         value = value.replace(',', '')
-        # 提取数字部分
-        num_match = re.search(r'(\d+(?:\.\d{1,2})?)', value)
+        # 提取数字部分（支持最多4位小数，覆盖万元单位场景）
+        num_match = re.search(r'(\d+(?:\.\d{1,6})?)', value)
         if num_match:
             return num_match.group(1)
 
