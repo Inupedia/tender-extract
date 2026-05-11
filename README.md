@@ -29,12 +29,25 @@
 
 ## ✨ 功能特性
 
-- **Markdown结构解析**：基于章节树构建，递归字符切分
-- **高吞吐规则层**：正则表达式+关键词启发式，一次抽取金额/日期/联系方式等
-- **极速词典匹配**：Aho–Corasick算法批量短语扫描
+- **多格式文档解析**：直接输入 PDF/DOCX/TXT/Markdown，自动转换为统一中间格式
+- **模块化路由**：按章节内容路由到9个专业模块（基础信息/财务/资质/评标等）
+- **增强正则引擎**：分层置信度模式库，覆盖中文金额/日期/证照/联系方式等
+- **高吞吐规则层**：正则表达式+Aho–Corasick关键词+NER多方法竞争
 - **智能去重**：RapidFuzz+MinHash局部敏感哈希，避免重复处理
-- **按需大语言模型**：仅低置信时路由最小证据片段，支持OpenAI/Ollama
+- **按需大语言模型**：仅低置信/冲突时路由最小证据片段，支持OpenAI/Ollama
 - **结构化输出**：Pydantic数据校验，保留证据片段便于审计
+- **表格感知**：从 Markdown 表格中提取金额/日期/人员信息
+
+### v0.2.0 新增功能
+
+| 功能 | 说明 |
+|------|------|
+| PDF/DOCX 解析 | 通过 PyMuPDF/python-docx 解析，基于字体大小推断标题，提取表格 |
+| 模块化路由 | 不全文直抽，按标题切块后路由到专业模块，每个模块独立定义输出 Schema |
+| 增强正则模式库 | 50+ 精确模式，分层置信度(0.95/0.8/0.6)，大写金额、统一社会信用代码等 |
+| 多方法竞争 | 同一字段多种抽取方式并行，按置信度选择最佳结果 |
+| 跨字段验证 | 保证金不超过投标金额等逻辑校验 |
+| 真实示例文档 | 包含公开的政府采购招标文件 PDF 作为示例 |
 
 ## 📊 性能表现
 
@@ -128,23 +141,25 @@ uv run tender-extract extract-v2 ./examples/ --out ./out --llm ollama --model de
 
 ```
 tender-extract/
-├── config/example.yaml           # 规则配置
+├── config/example.yaml           # 规则配置（正则模式、同义词词典）
 ├── data/dicts/keywords_zh.txt    # 关键词词典
-├── examples/                     # 示例文档 (MD/PDF/DOCX)
+├── examples/
+│   ├── example.md                # Markdown 示例文件
+│   └── example.pdf               # 真实招标文件（合肥市政府采购项目）
 └── src/tender_extract/
-    ├── cli.py                    # 命令行接口（extract + extract-v2）
-    ├── document_parser.py        # [新] 文档解析层（PDF/DOCX→Markdown）
-    ├── module_router.py          # [新] 模块化路由层
-    ├── extraction_engine.py      # [新] 增强抽取引擎（多方法竞争）
-    ├── patterns.py               # [新] 增强正则模式库（分层置信度）
-    ├── preprocess.py             # Markdown预处理 + 章节树
-    ├── chunker.py                # 智能切块（LangChain）
-    ├── rules.py                  # 经典规则抽取
-    ├── ner.py                    # NER实体识别
-    ├── dedupe.py                 # 去重引擎
-    ├── llm_router.py             # LLM按需路由
-    ├── merge.py                  # 结果合并
-    └── schema.py                 # Pydantic数据模型
+    ├── cli.py                    # 命令行接口（extract / extract-v2）
+    ├── document_parser.py        # 文档解析层（PDF/DOCX → Markdown）
+    ├── module_router.py          # 模块化路由层（9个专业模块）
+    ├── extraction_engine.py      # 增强抽取引擎（多方法竞争+置信度）
+    ├── patterns.py               # 正则模式库（分层置信度）
+    ├── preprocess.py             # Markdown 预处理 + 章节树构建
+    ├── chunker.py                # 智能切块（LangChain 分割器）
+    ├── rules.py                  # 规则抽取（正则+Aho-Corasick关键词）
+    ├── ner.py                    # 中文 NER（jieba）
+    ├── dedupe.py                 # 去重引擎（RapidFuzz + MinHash LSH）
+    ├── llm_router.py             # LLM 按需路由（OpenAI / Ollama）
+    ├── merge.py                  # 结果合并与冲突解决
+    └── schema.py                 # Pydantic 数据模型
 ```
 
 ---
