@@ -1,95 +1,135 @@
-"""
-Pydantic 输出模型定义
-"""
-from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field
-from datetime import datetime
+"""Pydantic 输出模型。"""
+from __future__ import annotations
+
+from typing import Any, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class EvidenceSpan(BaseModel):
-    """证据片段，包含字段值和引用定位"""
+    """证据片段，包含字段值和原文定位。"""
+
+    model_config = ConfigDict(extra="ignore")
+
     value: str = Field(..., description="提取的字段值")
-    start: int = Field(..., description="在原文中的起始位置")
-    end: int = Field(..., description="在原文中的结束位置")
+    start: int = Field(..., description="在当前文本中的起始位置")
+    end: int = Field(..., description="在当前文本中的结束位置")
     confidence: float = Field(..., description="置信度", ge=0.0, le=1.0)
-    source: str = Field(..., description="来源：rule/ner/llm")
-    pattern: Optional[str] = Field(None, description="匹配的正则表达式或模式")
-    ref: Optional[str] = Field(None, description="对应的完整引用段落")
+    source: str = Field(..., description="来源：regex/ner/llm")
+    pattern: Optional[str] = Field(None, description="匹配的模式说明")
+    ref: Optional[str] = Field(None, description="对应的原文片段")
+    unit: Optional[str] = Field(None, description="金额等单位，如 元/万元")
+    normalized_value: Optional[str] = Field(
+        None, description="规范化值，金额为人民币元"
+    )
 
 
 class ExtractedField(BaseModel):
-    """提取的字段"""
-    field_name: str = Field(..., description="字段名称")
-    field_type: str = Field(..., description="字段类型")
-    values: List[EvidenceSpan] = Field(default_factory=list, description="提取的值列表")
-    primary_value: Optional[str] = Field(None, description="主要值（置信度最高的）")
-    confidence: float = Field(0.0, description="整体置信度", ge=0.0, le=1.0)
-    conflicts: List[str] = Field(default_factory=list, description="冲突信息")
+    """提取的字段。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    field_name: str
+    field_type: str
+    values: list[EvidenceSpan] = Field(default_factory=list)
+    primary_value: Optional[str] = None
+    confidence: float = Field(0.0, ge=0.0, le=1.0)
+    conflicts: list[str] = Field(default_factory=list)
+
+
+class PersonnelRecord(BaseModel):
+    name: str
+    role: str = ""
+    id_card: str = ""
+    education: str = ""
+    major: str = ""
+    graduation_school: str = ""
+    graduation_date: str = ""
+    certificates: list[dict[str, str]] = Field(default_factory=list)
+    contact: str = ""
+    confidence: float = 0.0
+
+
+class CertificateRecord(BaseModel):
+    cert_type: str
+    cert_number: str
+    holder_name: str = ""
+    issue_date: str = ""
+    expiry_date: str = ""
+    issuer: str = ""
+    level: str = ""
+    major: str = ""
 
 
 class DocumentMetadata(BaseModel):
-    """文档元数据"""
-    filename: str = Field(..., description="文件名")
-    file_size: int = Field(..., description="文件大小（字节）")
-    total_lines: int = Field(..., description="总行数")
-    total_chunks: int = Field(..., description="总切片数")
-    processing_time: float = Field(..., description="处理时间（秒）")
-    extraction_stats: Dict[str, Any] = Field(default_factory=dict, description="抽取统计")
+    filename: str
+    file_size: int
+    total_lines: int
+    total_chunks: int
+    processing_time: float
+    extraction_stats: dict[str, Any] = Field(default_factory=dict)
 
 
 class ExtractionResult(BaseModel):
-    """抽取结果"""
-    metadata: DocumentMetadata = Field(..., description="文档元数据")
-    fields: Dict[str, ExtractedField] = Field(default_factory=dict, description="提取的字段")
-    chunks_processed: int = Field(0, description="处理的切片数")
-    llm_calls: int = Field(0, description="LLM调用次数")
-    cache_hits: int = Field(0, description="缓存命中次数")
-    errors: List[str] = Field(default_factory=list, description="错误信息")
-    warnings: List[str] = Field(default_factory=list, description="警告信息")
-    
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+    """单文档抽取结果。人员/证书绑定在本对象上，避免跨文件串数据。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    metadata: DocumentMetadata
+    fields: dict[str, ExtractedField] = Field(default_factory=dict)
+    personnel: list[PersonnelRecord] = Field(default_factory=list)
+    certificates: list[CertificateRecord] = Field(default_factory=list)
+    chunks_processed: int = 0
+    llm_calls: int = 0
+    cache_hits: int = 0
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class LLMRequest(BaseModel):
-    """LLM请求模型"""
-    chunk_text: str = Field(..., description="文本片段")
-    field_name: str = Field(..., description="字段名称")
-    field_type: str = Field(..., description="字段类型")
-    context: Optional[str] = Field(None, description="上下文信息")
-    existing_values: List[str] = Field(default_factory=list, description="已存在的值")
+    chunk_text: str
+    field_name: str
+    field_type: str
+    context: Optional[str] = None
+    existing_values: list[str] = Field(default_factory=list)
 
 
 class LLMResponse(BaseModel):
-    """LLM响应模型"""
-    field_name: str = Field(..., description="字段名称")
-    extracted_values: List[str] = Field(default_factory=list, description="提取的值")
-    confidence: float = Field(..., description="置信度", ge=0.0, le=1.0)
-    reasoning: Optional[str] = Field(None, description="推理过程")
-    evidence_spans: List[EvidenceSpan] = Field(default_factory=list, description="证据片段")
+    field_name: str
+    extracted_values: list[str] = Field(default_factory=list)
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    reasoning: Optional[str] = None
+    evidence_spans: list[EvidenceSpan] = Field(default_factory=list)
 
 
 class ChunkInfo(BaseModel):
-    """切片信息"""
-    chunk_id: str = Field(..., description="切片ID")
-    content: str = Field(..., description="切片内容")
-    start_line: int = Field(..., description="起始行号")
-    end_line: int = Field(..., description="结束行号")
-    chapter_path: List[str] = Field(default_factory=list, description="章节路径")
-    token_count: int = Field(0, description="token数量")
-    fingerprint: str = Field("", description="内容指纹")
+    chunk_id: str
+    content: str
+    start_line: int
+    end_line: int
+    chapter_path: list[str] = Field(default_factory=list)
+    token_count: int = 0
+    fingerprint: str = ""
 
 
 class ProcessingConfig(BaseModel):
-    """处理配置"""
-    use_ner: bool = Field(False, description="是否使用NER")
-    llm_provider: str = Field("none", description="LLM提供商：none/ollama/openai")
-    llm_model: Optional[str] = Field(None, description="LLM模型名称")
-    confidence_threshold: float = Field(0.7, description="置信度阈值")
-    max_chunk_tokens: int = Field(800, description="最大切片token数")
-    overlap_tokens: int = Field(100, description="重叠token数")
-    cache_dir: str = Field(".cache", description="缓存目录")
-    enable_dedupe: bool = Field(True, description="是否启用去重")
-    enable_similarity_check: bool = Field(True, description="是否启用相似度检查") 
+    """运行时配置。CLI 参数覆盖文件配置。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    use_ner: bool = False
+    llm_provider: str = "none"
+    llm_model: Optional[str] = None
+    llm_base_url: Optional[str] = None
+    llm_api_key: Optional[str] = None
+    confidence_threshold: float = 0.7
+    max_chunk_tokens: int = 800
+    overlap_tokens: int = 100
+    cache_dir: str = ".cache"
+    enable_dedupe: bool = False
+    enable_similarity_check: bool = False
+    use_modules: bool = True
+    include_pii: bool = False
+    use_ocr: bool = True
+    debug: bool = False
+    persist_llm_cache: bool = True

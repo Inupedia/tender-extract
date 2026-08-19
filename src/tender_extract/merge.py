@@ -13,9 +13,13 @@ class FieldMerger:
     
     def __init__(self):
         self.merge_strategies = {
+            'bid_amount': self._merge_amount_field,
             'amount': self._merge_amount_field,
+            'bid_date': self._merge_date_field,
             'date': self._merge_date_field,
+            'project_number': self._merge_number_field,
             'number': self._merge_number_field,
+            'contact_info': self._merge_contact_field,
             'contact': self._merge_contact_field,
             'deposit': self._merge_deposit_field,
             'default': self._merge_default_field
@@ -47,14 +51,11 @@ class FieldMerger:
         
         for value in sorted_values:
             try:
-                # 解析金额
-                amount = self._parse_amount(value.value)
-                if amount is not None:
-                    # 检查金额的合理性
-                    if self._is_reasonable_amount(amount):
-                        best_value = value
-                        best_confidence = value.confidence
-                        break
+                amount = self._parse_amount(value.value, value)
+                if amount is not None and self._is_reasonable_amount(amount):
+                    best_value = value
+                    best_confidence = value.confidence
+                    break
             except (ValueError, TypeError):
                 continue
         
@@ -203,14 +204,11 @@ class FieldMerger:
         
         for value in sorted_values:
             try:
-                # 解析保证金
-                amount = self._parse_amount(value.value)
-                if amount is not None:
-                    # 检查保证金的合理性
-                    if self._is_reasonable_deposit(amount):
-                        best_value = value
-                        best_confidence = value.confidence
-                        break
+                amount = self._parse_amount(value.value, value)
+                if amount is not None and self._is_reasonable_deposit(amount):
+                    best_value = value
+                    best_confidence = value.confidence
+                    break
             except (ValueError, TypeError):
                 continue
         
@@ -254,13 +252,21 @@ class FieldMerger:
         
         return merged_field
     
-    def _parse_amount(self, value: str) -> Optional[float]:
-        """解析金额"""
+    def _parse_amount(self, value: str, span=None) -> Optional[float]:
+        """解析金额为人民币元。"""
+        if span is not None and getattr(span, "normalized_value", None):
+            try:
+                return float(span.normalized_value)
+            except (ValueError, TypeError):
+                pass
         import re
-        
-        # 移除非数字字符
-        cleaned = re.sub(r'[^\d.]', '', value)
-        
+        if "万" in value:
+            cleaned = re.sub(r"[^\d.]", "", value)
+            try:
+                return float(cleaned) * 10000
+            except ValueError:
+                return None
+        cleaned = re.sub(r"[^\d.]", "", value)
         try:
             return float(cleaned)
         except ValueError:
@@ -354,18 +360,15 @@ class FieldMerger:
         return min_deposit <= amount <= max_deposit
     
     def resolve_conflicts(self, fields: Dict[str, ExtractedField]) -> Dict[str, ExtractedField]:
-        """解决字段冲突"""
+        """解决字段冲突，并按字段类型做一次合并。"""
         resolved_fields = {}
-        
         for field_name, field in fields.items():
+            strategy = self.merge_strategies.get(field.field_type, self.merge_strategies['default'])
+            field = strategy(field)
             if not field.conflicts:
                 resolved_fields[field_name] = field
                 continue
-            
-            # 解决冲突
-            resolved_field = self._resolve_field_conflicts(field)
-            resolved_fields[field_name] = resolved_field
-        
+            resolved_fields[field_name] = self._resolve_field_conflicts(field)
         return resolved_fields
     
     def _resolve_field_conflicts(self, field: ExtractedField) -> ExtractedField:

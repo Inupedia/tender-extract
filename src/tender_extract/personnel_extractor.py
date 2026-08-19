@@ -127,14 +127,11 @@ class PersonnelExtractor:
         (re.compile(
             r'(?:证书|资格证|执业证|资质证)[^，。\n]*?(?:编号|号)[：:]\s*([^\s，。\n]{6,30})'
         ), "资格证书", 0.80),
+    ]
 
-        # 有效期
-        (re.compile(
-            r'有效期[^：:]*[：:]\s*(\d{4}[-/年]\d{1,2}[-/月]\d{1,2}[日]?)'
-        ), "有效期", 0.90),
-        (re.compile(
-            r'有效期至[：:]?\s*(\d{4}[-/年]\d{1,2}[-/月]\d{1,2}[日]?)'
-        ), "有效期至", 0.90),
+    EXPIRY_PATTERNS = [
+        re.compile(r'有效期至[：:]?\s*(\d{4}[-/年]\d{1,2}[-/月]\d{1,2}[日]?)'),
+        re.compile(r'有效期[^：:]*[：:]\s*(\d{4}[-/年]\d{1,2}[-/月]\d{1,2}[日]?)'),
     ]
 
     # 表格行中的人员信息模式
@@ -192,26 +189,37 @@ class PersonnelExtractor:
         return personnel_list
 
     def extract_certificates(self, text: str) -> List[CertificateInfo]:
-        """提取证书信息（去重）"""
+        """提取证书信息（去重）。有效期写入 expiry_date，不作为证书编号。"""
         certificates = []
         seen_numbers = set()
 
         for pattern, cert_type, confidence in self.CERTIFICATE_PATTERNS:
             for match in pattern.finditer(text):
                 cert_number = match.group(1).strip()
-                if len(cert_number) >= 6 and cert_number not in seen_numbers:
-                    seen_numbers.add(cert_number)
-                    cert = CertificateInfo(
-                        cert_type=cert_type,
-                        cert_number=cert_number,
-                    )
-                    # 尝试关联持有人
-                    cert.holder_name = self._find_nearby_name(
-                        text, cert_number, search_range=200
-                    ) or ""
-                    certificates.append(cert)
+                if len(cert_number) < 6 or cert_number in seen_numbers:
+                    continue
+                if re.search(r'\d{4}[-/年]', cert_number) and "证" not in cert_type:
+                    continue
+                seen_numbers.add(cert_number)
+                cert = CertificateInfo(
+                    cert_type=cert_type,
+                    cert_number=cert_number,
+                )
+                cert.holder_name = self._find_nearby_name(
+                    text, cert_number, search_range=200
+                ) or ""
+                nearby = text[max(0, match.start() - 80):match.end() + 120]
+                cert.expiry_date = self._find_expiry_in_context(nearby)
+                certificates.append(cert)
 
         return certificates
+
+    def _find_expiry_in_context(self, context: str) -> str:
+        for pattern in self.EXPIRY_PATTERNS:
+            match = pattern.search(context)
+            if match:
+                return match.group(1).strip()
+        return ""
 
     def _extract_from_tables(self, text: str) -> List[PersonnelInfo]:
         """从表格行中提取人员信息"""

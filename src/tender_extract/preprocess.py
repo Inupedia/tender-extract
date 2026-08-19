@@ -31,17 +31,9 @@ class MarkdownPreprocessor:
         self.chapter_tree: Optional[ChapterNode] = None
         
     def clean_text(self, text: str) -> str:
-        """清理文本"""
-        # 移除多余的空白字符
-        text = re.sub(r'\n\s*\n', '\n\n', text)
+        """轻度清理：折叠空白，保留 Markdown 表格与中文标点。"""
+        text = re.sub(r'\n{3,}', '\n\n', text)
         text = re.sub(r'[ \t]+', ' ', text)
-        
-        # 标准化标点符号
-        text = text.replace('：', ':').replace('，', ',').replace('。', '.')
-        
-        # 移除特殊字符
-        text = re.sub(r'[^\w\s\u4e00-\u9fff:.,;!?()（）【】""''\n\t]', '', text)
-        
         return text.strip()
     
     def parse_markdown(self, content: str) -> SyntaxTreeNode:

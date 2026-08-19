@@ -432,6 +432,15 @@ wheels = [
 ]
 
 [[package]]
+name = "iniconfig"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple/" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
+]
+
+[[package]]
 name = "jieba"
 version = "0.42.1"
 source = { registry = "https://pypi.org/simple/" }
@@ -783,19 +792,6 @@ wheels = [
 ]
 
 [[package]]
-name = "ollama"
-version = "0.6.2"
-source = { registry = "https://pypi.org/simple/" }
-dependencies = [
-    { name = "httpx" },
-    { name = "pydantic" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/fc/72/5f12423b6b39ca8430fbe56f77fcf4ef60f63067c7c4a2e30e200ed9ec16/ollama-0.6.2.tar.gz", hash = "sha256:936d55daa684f474364c098611c933626f8d6c7d67065c5b7ae0c477b508b07f", size = 53145, upload-time = "2026-04-29T21:21:15.018Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c4/ab/d6722beeb2d10f7a3b9ff49375708904fde18f82b5609a0bc4aeb5996a4d/ollama-0.6.2-py3-none-any.whl", hash = "sha256:3ad7daab28e5a973445c36a73882a3ef698c2ebb00e21e308652741577509f7d", size = 15115, upload-time = "2026-04-29T21:21:13.794Z" },
-]
-
-[[package]]
 name = "openai"
 version = "2.36.0"
 source = { registry = "https://pypi.org/simple/" }
@@ -1105,6 +1101,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pluggy"
+version = "1.6.0"
+source = { registry = "https://pypi.org/simple/" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
 name = "prettytable"
 version = "3.17.0"
 source = { registry = "https://pypi.org/simple/" }
@@ -1399,6 +1404,22 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/11/7b/6ed4782e0d7a5278330598ce8c4b2df7255f4585a0b3d04520fa580d6507/pypdfium2-5.8.0-py3-none-win32.whl", hash = "sha256:3f25fd436920a907291462b41bdc0ab9f8235c3944b4c9c15398da595ffd1fed", size = 3636680, upload-time = "2026-05-04T17:39:38.49Z" },
     { url = "https://files.pythonhosted.org/packages/19/55/da7223d4202b2461f4f889b0baf10dddec3db7f88e6fd8c52db4a516eecd/pypdfium2-5.8.0-py3-none-win_amd64.whl", hash = "sha256:55592af0bddd2d62bed18e0053c546c9b72041430c5115e54870f7f6163125b0", size = 3754962, upload-time = "2026-05-04T17:39:40.13Z" },
     { url = "https://files.pythonhosted.org/packages/fc/7a/f3dcefe6ee7389aad3ca1488c177e8fbf978206de21c7a99ccf487ea38ab/pypdfium2-5.8.0-py3-none-win_arm64.whl", hash = "sha256:3f17ed97ae8a5a1705301ca93af256a5b02f9009dee4e99c5e175831d46ebd7c", size = 3548362, upload-time = "2026-05-04T17:39:42.304Z" },
+]
+
+[[package]]
+name = "pytest"
+version = "9.1.1"
+source = { registry = "https://pypi.org/simple/" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "iniconfig" },
+    { name = "packaging" },
+    { name = "pluggy" },
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313", size = 1636369, upload-time = "2026-06-19T10:58:32.857Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c", size = 386536, upload-time = "2026-06-19T10:58:31.347Z" },
 ]
 
 [[package]]
@@ -1819,17 +1840,15 @@ wheels = [
 
 [[package]]
 name = "tender-extract"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "datasketch" },
+    { name = "httpx" },
     { name = "jieba" },
     { name = "langchain-text-splitters" },
     { name = "markdown-it-py" },
-    { name = "numpy" },
-    { name = "ollama" },
     { name = "openai" },
-    { name = "pandas" },
     { name = "pyahocorasick" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -1841,25 +1860,17 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
-    { name = "jieba" },
     { name = "paddleocr" },
     { name = "paddlepaddle" },
     { name = "pymupdf" },
+    { name = "pytest" },
     { name = "python-docx" },
-    { name = "rich" },
-    { name = "tqdm" },
-    { name = "typer" },
 ]
-cli = [
-    { name = "rich" },
-    { name = "tqdm" },
-    { name = "typer" },
+dev = [
+    { name = "pytest" },
 ]
 docx = [
     { name = "python-docx" },
-]
-ner = [
-    { name = "jieba" },
 ]
 ocr = [
     { name = "paddleocr" },
@@ -1872,38 +1883,30 @@ pdf = [
 [package.metadata]
 requires-dist = [
     { name = "datasketch", specifier = ">=1.5.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
     { name = "jieba", specifier = ">=0.42.1" },
-    { name = "jieba", marker = "extra == 'all'", specifier = ">=0.42.1" },
-    { name = "jieba", marker = "extra == 'ner'", specifier = ">=0.42.1" },
     { name = "langchain-text-splitters", specifier = ">=0.3.0" },
     { name = "markdown-it-py", specifier = ">=3.0.0" },
-    { name = "numpy", specifier = ">=1.24.0" },
-    { name = "ollama", specifier = ">=0.1.0" },
-    { name = "openai", specifier = ">=1.0.0" },
+    { name = "openai", specifier = ">=1.40.0" },
     { name = "paddleocr", marker = "extra == 'all'", specifier = ">=3.0.0" },
     { name = "paddleocr", marker = "extra == 'ocr'", specifier = ">=3.0.0" },
     { name = "paddlepaddle", marker = "extra == 'all'", specifier = ">=3.0.0" },
     { name = "paddlepaddle", marker = "extra == 'ocr'", specifier = ">=3.0.0" },
-    { name = "pandas", specifier = ">=2.0.0" },
     { name = "pyahocorasick", specifier = ">=2.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pymupdf", marker = "extra == 'all'", specifier = ">=1.23.0" },
     { name = "pymupdf", marker = "extra == 'pdf'", specifier = ">=1.23.0" },
+    { name = "pytest", marker = "extra == 'all'", specifier = ">=8.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "python-docx", marker = "extra == 'all'", specifier = ">=1.0.0" },
     { name = "python-docx", marker = "extra == 'docx'", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "rapidfuzz", specifier = ">=3.0.0" },
     { name = "rich", specifier = ">=13.0.0" },
-    { name = "rich", marker = "extra == 'all'", specifier = ">=13.0.0" },
-    { name = "rich", marker = "extra == 'cli'", specifier = ">=13.0.0" },
     { name = "tqdm", specifier = ">=4.65.0" },
-    { name = "tqdm", marker = "extra == 'all'", specifier = ">=4.65.0" },
-    { name = "tqdm", marker = "extra == 'cli'", specifier = ">=4.65.0" },
     { name = "typer", specifier = ">=0.9.0" },
-    { name = "typer", extras = ["all"], marker = "extra == 'all'", specifier = ">=0.9.0" },
-    { name = "typer", extras = ["all"], marker = "extra == 'cli'", specifier = ">=0.9.0" },
 ]
-provides-extras = ["cli", "ner", "pdf", "docx", "ocr", "all"]
+provides-extras = ["dev", "pdf", "docx", "ocr", "all"]
 
 [[package]]
 name = "tqdm"

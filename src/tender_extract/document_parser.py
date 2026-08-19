@@ -70,7 +70,7 @@ class DocumentParser:
     - 扫描页/图片页用 PaddleOCR 识别（准）
     """
 
-    SUPPORTED_EXTENSIONS = {'.pdf', '.docx', '.doc', '.txt', '.md', '.markdown'}
+    SUPPORTED_EXTENSIONS = {'.pdf', '.docx', '.txt', '.md', '.markdown'}
 
     # 扫描页判定阈值：每页文字少于此字符数视为扫描页
     SCANNED_PAGE_THRESHOLD = 50
@@ -90,7 +90,7 @@ class DocumentParser:
         if PYMUPDF_AVAILABLE:
             self.available_formats.add('.pdf')
         if PYTHON_DOCX_AVAILABLE:
-            self.available_formats.update({'.docx', '.doc'})
+            self.available_formats.add('.docx')
 
     def _get_ocr_engine(self):
         """懒加载 OCR 引擎（首次使用时初始化，避免无需时的开销）"""
@@ -197,8 +197,10 @@ class DocumentParser:
 
         if ext == '.pdf':
             return self._parse_pdf(file_path)
-        elif ext in ('.docx', '.doc'):
+        elif ext == '.docx':
             return self._parse_docx(file_path)
+        elif ext == '.doc':
+            raise ValueError("不支持旧版 Word .doc，请另存为 .docx 后再抽取。")
         elif ext in ('.md', '.markdown'):
             return self._parse_markdown(file_path)
         else:
@@ -235,10 +237,13 @@ class DocumentParser:
                 page_text = page.get_text("text")
                 pages_content.append(page_text)
 
-                # 提取表格
                 tables = page.find_tables()
+                table_bboxes = []
                 for table in tables:
                     table_data = table.extract()
+                    bbox = getattr(table, "bbox", None)
+                    if bbox:
+                        table_bboxes.append(bbox)
                     if table_data:
                         all_tables.append({
                             'page': page_num + 1,
@@ -246,9 +251,10 @@ class DocumentParser:
                         })
                         markdown_parts.append(self._table_to_markdown(table_data))
 
-                # 使用字典模式获取带格式信息的文本块
                 blocks = page.get_text("dict")["blocks"]
-                page_markdown = self._blocks_to_markdown(blocks, page_num + 1)
+                page_markdown = self._blocks_to_markdown(
+                    blocks, page_num + 1, skip_bboxes=table_bboxes
+                )
                 markdown_parts.append(page_markdown)
 
         doc.close()
@@ -274,13 +280,15 @@ class DocumentParser:
             page_contents=pages_content
         )
 
-    def _blocks_to_markdown(self, blocks: list, page_num: int) -> str:
-        """将 PDF 文本块转换为 Markdown"""
+    def _blocks_to_markdown(self, blocks: list, page_num: int, skip_bboxes: list | None = None) -> str:
+        """将 PDF 文本块转换为 Markdown。与表格 bbox 重叠的块跳过，避免重复抽取。"""
         lines = []
-        prev_size = 0
+        skip_bboxes = skip_bboxes or []
 
         for block in blocks:
-            if block["type"] != 0:  # 只处理文本块
+            if block["type"] != 0:
+                continue
+            if skip_bboxes and _bbox_overlaps(block.get("bbox"), skip_bboxes):
                 continue
 
             for line_data in block.get("lines", []):
@@ -361,30 +369,26 @@ class DocumentParser:
         markdown_parts = []
         all_tables = []
 
+        para_by_element = {p._element: p for p in doc.paragraphs}
+        table_by_element = {t._element: t for t in doc.tables}
+
         for element in doc.element.body:
             tag = element.tag.split('}')[-1] if '}' in element.tag else element.tag
 
             if tag == 'p':
-                # 段落处理
-                para = None
-                for p in doc.paragraphs:
-                    if p._element == element:
-                        para = p
-                        break
+                para = para_by_element.get(element)
                 if para:
                     md_line = self._paragraph_to_markdown(para)
                     if md_line:
                         markdown_parts.append(md_line)
 
             elif tag == 'tbl':
-                # 表格处理
-                for table in doc.tables:
-                    if table._element == element:
-                        table_md, table_data = self._docx_table_to_markdown(table)
-                        if table_md:
-                            markdown_parts.append(table_md)
-                            all_tables.append({'data': table_data})
-                        break
+                table = table_by_element.get(element)
+                if table:
+                    table_md, table_data = self._docx_table_to_markdown(table)
+                    if table_md:
+                        markdown_parts.append(table_md)
+                        all_tables.append({'data': table_data})
 
         content = "\n\n".join(markdown_parts)
 
@@ -474,5 +478,15 @@ class DocumentParser:
         if PYMUPDF_AVAILABLE:
             extensions.add('.pdf')
         if PYTHON_DOCX_AVAILABLE:
-            extensions.update({'.docx', '.doc'})
+            extensions.add('.docx')
         return extensions
+
+
+def _bbox_overlaps(bbox, others) -> bool:
+    if not bbox:
+        return False
+    x0, y0, x1, y1 = bbox
+    for ox0, oy0, ox1, oy1 in others:
+        if x0 < ox1 and x1 > ox0 and y0 < oy1 and y1 > oy0:
+            return True
+    return False

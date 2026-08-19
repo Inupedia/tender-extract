@@ -189,17 +189,6 @@ COMPANY_PATTERNS: List[PatternDef] = [
     PatternDef(
         r'投标单位[：:]\s*([^，。\n]{4,50}(?:有限公司|集团|公司|企业))',
         0.95, "投标单位名称"),
-    PatternDef(
-        r'招标人[：:]\s*([^，。\n]{4,50}(?:有限公司|集团|公司|企业|局|中心))',
-        0.95, "招标人名称"),
-    PatternDef(
-        r'招标代理[^：:]*[：:]\s*([^，。\n]{4,50}(?:有限公司|集团|公司|企业))',
-        0.90, "招标代理名称"),
-
-    # 采购人/项目单位名称
-    PatternDef(
-        r'(?:采购人|项目单位|建设单位)[^：:]*[：:]\s*([^，。\n]{4,50}(?:有限公司|集团|公司|企业|局|中心|处))',
-        0.85, "采购人/项目单位名称"),
 ]
 
 # ============================================================
@@ -229,21 +218,7 @@ PERSON_PATTERNS: List[PatternDef] = [
 # ============================================================
 # 证照/编号模式
 # ============================================================
-ID_PATTERNS: List[PatternDef] = [
-    # 统一社会信用代码 (18位)
-    PatternDef(
-        r'(?:统一社会信用代码|信用代码)[：:]\s*([0-9A-Z]{18})',
-        0.95, "统一社会信用代码"),
-    PatternDef(
-        r'([0-9]{2}[0-9]{6}[0-9A-Z]{10})',
-        0.70, "宽松社会信用代码"),
-
-    # 营业执照号
-    PatternDef(
-        r'营业执照[^：:]*[：:]\s*([0-9A-Z]{15,18})',
-        0.95, "营业执照号"),
-
-    # 项目/招标编号
+PROJECT_NUMBER_PATTERNS: List[PatternDef] = [
     PatternDef(
         r'项目编号[：:]\s*([A-Za-z0-9\-_/]{5,30})',
         0.95, "项目编号"),
@@ -256,8 +231,18 @@ ID_PATTERNS: List[PatternDef] = [
     PatternDef(
         r'合同编号[：:]\s*([A-Za-z0-9\-_/]{5,30})',
         0.85, "合同编号"),
+]
 
-    # 资质证书编号
+BUSINESS_LICENSE_PATTERNS: List[PatternDef] = [
+    PatternDef(
+        r'(?:统一社会信用代码|信用代码)[：:]\s*([0-9A-Z]{18})',
+        0.95, "统一社会信用代码"),
+    PatternDef(
+        r'营业执照[^：:]*[：:]\s*([0-9A-Z]{15,18})',
+        0.95, "营业执照号"),
+]
+
+QUALIFICATION_PATTERNS: List[PatternDef] = [
     PatternDef(
         r'(?:资质|资格)证书[^：:]*编号[：:]\s*([A-Za-z0-9\-]{6,25})',
         0.90, "资质证书编号"),
@@ -333,7 +318,9 @@ FIELD_PATTERNS: dict = {
     'bidder': COMPANY_PATTERNS,
     'tenderer': TENDERER_PATTERNS,
     'legal_representative': PERSON_PATTERNS,
-    'project_number': ID_PATTERNS,
+    'project_number': PROJECT_NUMBER_PATTERNS,
+    'business_license': BUSINESS_LICENSE_PATTERNS,
+    'qualification_cert': QUALIFICATION_PATTERNS,
     'table_data': TABLE_PATTERNS,
 }
 
