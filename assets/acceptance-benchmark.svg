@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc">
+  <title id="title">tender-extract real PDF acceptance benchmark</title>
+  <desc id="desc">Measured GitHub Actions benchmark: 13 PDFs, 911 pages, 26.31 seconds, 34.62 pages per second, 14 semantic checks, zero failures. SiliconFlow Qwen3-8B live validation achieved F1 1.0 with cache reuse.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="1" stop-color="#18233e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#54d6a0"/>
+      <stop offset="1" stop-color="#66a3ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="560" rx="28" fill="url(#bg)"/>
+  <text x="64" y="72" fill="#f4f7ff" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="34" font-weight="700">Real-world acceptance · measured in GitHub Actions</text>
+  <text x="64" y="108" fill="#9eacc8" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="18">Committed public tender/procurement PDFs · deterministic baseline without LLM</text>
+
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <rect x="64" y="148" width="202" height="132" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
+    <text x="88" y="194" fill="#9eacc8" font-size="16">PDF corpus</text>
+    <text x="88" y="244" fill="#f4f7ff" font-size="40" font-weight="700">13</text>
+
+    <rect x="282" y="148" width="202" height="132" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
+    <text x="306" y="194" fill="#9eacc8" font-size="16">Total pages</text>
+    <text x="306" y="244" fill="#f4f7ff" font-size="40" font-weight="700">911</text>
+
+    <rect x="500" y="148" width="202" height="132" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
+    <text x="524" y="194" fill="#9eacc8" font-size="16">Wall time</text>
+    <text x="524" y="244" fill="#f4f7ff" font-size="40" font-weight="700">26.31s</text>
+
+    <rect x="718" y="148" width="202" height="132" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
+    <text x="742" y="194" fill="#9eacc8" font-size="16">Throughput</text>
+    <text x="742" y="244" fill="#54d6a0" font-size="40" font-weight="700">34.62</text>
+    <text x="742" y="266" fill="#9eacc8" font-size="15">pages / second</text>
+
+    <rect x="936" y="148" width="200" height="132" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
+    <text x="960" y="194" fill="#9eacc8" font-size="16">Semantic gates</text>
+    <text x="960" y="244" fill="#f4f7ff" font-size="40" font-weight="700">14 / 14</text>
+  </g>
+
+  <rect x="64" y="316" width="1072" height="2" fill="url(#accent)" opacity="0.75"/>
+
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <text x="64" y="365" fill="#f4f7ff" font-size="22" font-weight="650">SiliconFlow live acceptance · Qwen/Qwen3-8B</text>
+    <text x="64" y="399" fill="#b9c5da" font-size="17">Cold run: 4 logical LLM calls · 4/4 network calls succeeded · strong rule fields preserved</text>
+    <text x="64" y="431" fill="#b9c5da" font-size="17">Warm run: 4 cache hits · 0 new network calls · 0.27s on the same 10-page example.pdf</text>
+    <text x="64" y="463" fill="#b9c5da" font-size="17">Gold evaluation: Micro F1 1.000 · Macro F1 1.000 · exact case accuracy 1.000</text>
+    <rect x="64" y="492" width="1072" height="1" fill="#ffffff" opacity="0.10"/>
+    <circle cx="77" cy="525" r="6" fill="#54d6a0"/>
+    <text x="94" y="531" fill="#9eacc8" font-size="15">Baseline speed and LLM latency are reported separately: the hybrid router keeps expensive model calls off the deterministic fast path.</text>
+  </g>
+</svg>
