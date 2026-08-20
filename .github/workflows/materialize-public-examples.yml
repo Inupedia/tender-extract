@@ -1,0 +1,61 @@
+name: Materialize Public Examples
+
+on:
+  push:
+    branches: [feat/real-world-acceptance-readme]
+
+concurrency:
+  group: materialize-public-examples
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: ${{ !contains(github.event.head_commit.message, '[examples-materialized]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/real-world-acceptance-readme
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+      - name: Install package with PDF support
+        run: uv sync --extra dev --extra pdf
+      - name: Download public originals and build fixtures
+        run: >-
+          uv run python scripts/fetch_public_examples.py
+          --target-count 12
+          --max-full-mb 3
+          --excerpt-pages 8
+      - name: Run full-original acceptance
+        run: >-
+          uv run python scripts/acceptance_corpus.py
+          --examples .cache/public-full
+          --min-pdfs 12
+          --no-require-example
+          --report artifacts/public-full-acceptance.json
+      - name: Commit materialized fixtures
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- examples/public-*.pdf examples/public-corpus.lock.json
+          if git diff --cached --quiet; then
+            echo "Public fixtures already materialized"
+            exit 0
+          fi
+          git commit -m "test: add public tender PDF fixtures [examples-materialized]"
+          git pull --rebase origin feat/real-world-acceptance-readme
+          git push origin HEAD:feat/real-world-acceptance-readme
+      - name: Upload full-original acceptance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-full-acceptance
+          path: artifacts/public-full-acceptance.json

@@ -189,6 +189,7 @@ class ExtractionPipeline:
             "personnel_count": len(personnel_records),
             "certificates_count": len(certificate_records),
             "original_format": parsed.original_format,
+            "page_count": parsed.total_pages,
             "ocr_pages": (parsed.metadata or {}).get("ocr_pages", 0),
             **evidence_stats,
         }
@@ -199,6 +200,7 @@ class ExtractionPipeline:
                 file_size=path.stat().st_size,
                 total_lines=len(content.split("\n")),
                 total_chunks=len(chunks),
+                total_pages=parsed.total_pages,
                 processing_time=time.time() - started,
                 extraction_stats=stats,
             ),

@@ -37,6 +37,9 @@ def test_pdf_extraction_attaches_page_and_bbox(tmp_path: Path):
         str(path), document_id="pdf-evidence-doc"
     )
 
+    assert result.metadata.total_pages == 1
+    assert result.metadata.extraction_stats["page_count"] == 1
+
     span = result.fields["document_code"].values[0]
     assert span.location is not None
     assert span.location.document_id == "pdf-evidence-doc"

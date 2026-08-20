@@ -1,224 +1,277 @@
-# tender-extract
+# tender-extract · Structured extraction for Chinese tender documents
 
 English | [中文](README.md)
 
-## 📖 Introduction
+> **Do not send the whole PDF to an LLM.** `tender-extract` handles deterministic fields with a fast, reproducible rule/router layer and only routes low-confidence, conflicting, or missing fields to an LLM. Results retain page-aware evidence and PDF bounding boxes for audit and review.
 
-### Project Background
+![Real PDF acceptance benchmark](assets/acceptance-benchmark.svg)
 
-In the bidding and tendering industry, tender documents typically contain hundreds or even thousands of pages of complex information. Traditional manual extraction methods face issues of low efficiency, high costs, and insufficient accuracy.
+## 🚀 Why use it?
 
-### Project Objectives
+- ⚡ **Fast deterministic path** — 13 committed public PDFs, 911 pages, measured at **26.31 s / 34.62 pages per second** in GitHub Actions.
+- 🧠 **LLM only when needed** — live-tested against SiliconFlow `Qwen/Qwen3-8B`.
+- 🔎 **Auditable evidence** — `document_id + page + section + line + source_text + bbox` when the source format supports it.
+- 📦 **Multi-file tender packages** — tender, amendment, clarification and bidder submissions with revisions and bidder isolation.
+- 👀 **Human review loop** — accept/correct/reject uncertain fields and export decisions back into a Gold Dataset.
+- 📊 **Quality gates** — built-in Precision / Recall / F1 evaluation for CI.
 
-`tender-extract` achieves intelligent tender document information extraction through **hybrid extraction technology** (rule engine + large language models):
+## 📊 Real PDF acceptance
 
-- **Automated Extraction**: Automatically identify key fields from large volumes of documents
-- **Cost Optimization**: Rule layer covers 60-90% of fields, dramatically reducing LLM API call costs
-- **High Precision**: Combine deterministic rules with intelligent reasoning
-- **Auditable Traceability**: Preserve original text evidence for result verification
-- **Standardized Output**: Unified structured data format
+Measured on GitHub-hosted Ubuntu 24.04 with Python 3.12 and LLM disabled:
 
-> A **hybrid extraction** pipeline for **thousand-page** level Chinese tender documents: First use **rules/dictionaries/NER** to process deterministic fields, then route only **low-confidence/conflicting** fragments to **LLM**, ensuring auditability while significantly reducing costs and improving efficiency.
+| Metric | Result |
+|---|---:|
+| PDFs | **13** |
+| Pages | **911** |
+| Corpus size | **9.26 MB** |
+| Extracted fields | **72** |
+| Wall time | **26.31 s** |
+| Throughput | **34.62 pages/s** |
+| Average per PDF | **2.02 s** |
+| Semantic checks | **14 / 14** |
+| Failures | **0** |
+| LLM calls | **0** |
 
-## 🚀 Core Advantages
+This is a measured CI run, not an SLA. OCR, hardware, storage and document layout can change throughput. The **34.62 pages/s number does not include OCR or network LLM time**.
 
-- **High Performance**: 5 documents processed in only 2.31 seconds, averaging 0.46 seconds per document
-- **Cost Control**: Rule layer covers 60-90% of hard fields, dramatically reducing LLM API calls
-- **Auditability**: Each extraction result preserves original text evidence fragments
-- **Detailed Monitoring**: Real-time display of processing progress for debugging
+### `examples/example.pdf`
 
-## ✨ Features
+The committed 10-page procurement document completes in roughly **0.35 s** on the deterministic path with six core fields and average confidence around **0.94**:
 
-- **Multi-format Parsing**: PDF / DOCX / TXT / Markdown
-- **Module Routing**: Route chapter chunks to 9 specialist modules
-- **High-Throughput Rule Layer**: Regex + keyword heuristics, one-pass extraction of amounts/dates/contact info
-- **Ultra-Fast Dictionary Matching**: Aho–Corasick batch phrase scanning
-- **Intelligent Deduplication**: RapidFuzz + MinHash LSH to avoid duplicate processing
-- **On-Demand LLM**: Route minimal evidence fragments only when low confidence; OpenAI, Azure, Anthropic, Gemini, Ollama, DeepSeek, Qwen, and other OpenAI-compatible providers
-- **Structured Output**: Pydantic validation with evidence_spans for auditing
+```text
+project_name    合肥市公安局瑶海分局雪亮工程支网一期、二期、三期运维服务采购项目  0.99  page 1
+project_number  2024BFFFZ01583                                             0.95  page 1
+tenderer        合肥市公安局瑶海分局                                        0.95  page 1
+bid_amount      437.677万元                                                0.90  page 3
+bid_date        2024年7月1日17时30分                                       0.90  page 5
+contact_info    055166223642                                               0.95  page 7
+```
 
-## 📊 Performance
+The real-world corpus uncovered and fixed issues that synthetic tests did not catch: wrapped project names, project-name over-capture, procurement-agent false positives, URL noise, unrelated historical dates being selected as deadlines, and unlabelled large amounts being promoted to bid amounts.
 
-<img src="./assets/1.jpg" alt="Performance Statistics Chart" style="width:300px; height:auto;" />
-
-**Extraction Statistics**:
-- 26 field types, average 24.4 fields per document
-- High-frequency: project name, bidder, contact info, dates
-- Medium-frequency: business scope, bid amount, business license
-- Low-frequency: registered capital, shareholder info, project manager
-
-### Sample documents
-
-| File | Description |
-|------|-------------|
-| `examples/example.md` | Synthetic tender covering project name, bidder, amounts, deposit, personnel |
-| `examples/example.pdf` | Real public procurement PDF (Hefei Xue-liang project, 10 pages) |
+## 🧠 Live SiliconFlow validation
 
 ```bash
-uv run tender-extract extract ./examples/example.pdf --out ./out
-uv run tender-extract extract ./examples/example.md --out ./out
+export SILICONFLOW_API_KEY=your-key
+
+uv run tender-extract extract examples/example.pdf \
+  --llm siliconflow \
+  --model Qwen/Qwen3-8B \
+  --out out
 ```
 
----
+Measured live acceptance:
 
-## 🛠️ Quick Start
+| Metric | Result |
+|---|---:|
+| Model | `Qwen/Qwen3-8B` |
+| Cold logical LLM calls | **4** |
+| Cold network calls | **4 / 4 succeeded** |
+| Cold wall time | **423.31 s** |
+| Warm cache hits | **4** |
+| New network calls on warm run | **0** |
+| Warm wall time | **0.27 s** |
+| Gold Micro F1 | **1.000** |
+| Gold Macro F1 | **1.000** |
+| Exact case accuracy | **1.000** |
 
-### Installation
+Cold LLM latency depends on the external provider, queueing, model inference and network conditions. That is exactly why the pipeline is designed as **rules first → LLM only for uncertainty → persistent cache**. High-confidence rule fields remain protected from unnecessary model overrides.
+
+For fast batch extraction without model calls:
 
 ```bash
-# Clone and install
-git clone <repository-url>
-cd tender-extract
-uv sync --extra all
-
-# Optional extras
-uv sync --extra pdf    # PyMuPDF
-uv sync --extra docx   # python-docx
-uv sync --extra ocr    # PaddleOCR
-
-# Verify installation
-uv run tender-extract --help
+uv run tender-extract extract ./documents --llm none --out out
 ```
 
-### Basic Usage
+## 🔎 Evidence-aware JSON
 
-```bash
-# Rule-based extraction only (fastest)
-uv run tender-extract extract ./examples/ --out ./out --llm none
-
-# Enable LLM (requires API key)
-export OPENAI_API_KEY=your-api-key
-uv run tender-extract extract ./examples/ --out ./out --llm openai --model gpt-4o-mini
-
-# Local Ollama
-uv run tender-extract extract ./examples/ --out ./out --llm ollama --model deepseek-r1:32b
-
-# List providers
-uv run tender-extract providers
-```
-
-`extract-v2` remains as an alias of `extract`.
-
-### Main Parameters
-
-- `input_path`: Input file or directory
-- `--out`: Output directory (default ./out)
-- `--llm`: `none` or a provider id (`openai` / `ollama` / `anthropic` / `deepseek` / …)
-- `--model`: Model name (Azure: deployment name)
-- `--use-ner`: Enable Chinese NER
-- `--include-pii`: Write full ID numbers (masked by default)
-- `--verbose`: Show detailed progress
-- `--debug`: LLM debug mode
-
----
-
-## 📂 Project Structure
-
-```
-tender-extract/
-├── config/example.yaml           # Rule configuration
-├── data/dicts/keywords_zh.txt    # Keyword dictionary
-├── examples/
-│   ├── example.md                # Markdown sample
-│   └── example.pdf               # Real tender PDF
-└── src/tender_extract/
-    ├── cli.py                    # CLI entry
-    ├── pipeline.py               # Unified extraction pipeline
-    ├── preprocess.py             # Markdown preprocessing
-    ├── rules.py                  # Rule extraction
-    ├── llm_router.py             # LLM routing
-    └── schema.py                 # Output model
-```
-
----
-
-## ⚙️ Configuration
-
-### Rule Configuration
-
-Edit `config/example.yaml`:
-
-```yaml
-patterns:
-  date:
-    - pattern: r'(\d{4}年\d{1,2}月\d{1,2}日)'
-      confidence: 0.9
-  amount:
-    - pattern: r'人民币[壹贰叁肆伍陆柒捌玖拾佰仟万亿]+元'
-      confidence: 0.8
-
-synonyms:
-  - [评标办法, 资格条件, 联合体]
-  - [法定代表人, 法人代表, 负责人]
-```
-
----
-
-## 🔍 How It Works
-
-1. **Parse**: Convert PDF/DOCX/TXT to Markdown
-2. **Chunk**: Recursive character splitting, chapter-aware
-3. **Route**: Keyword routing into specialist modules
-4. **Extract**: Regex + optional NER; LLM only for low-confidence spans
-5. **Merge**: Dedup, conflict resolution, cross-field checks
-
----
-
-## 📊 Output Format
+A simplified real result looks like this:
 
 ```json
 {
   "metadata": {
-    "filename": "example.md",
-    "processing_time": 2.31,
-    "total_fields": 24
+    "filename": "example.pdf",
+    "total_pages": 10,
+    "processing_time": 0.35
   },
   "fields": {
     "project_name": {
-      "primary_value": "Test Engineering Project",
-      "confidence": 0.95,
-      "values": [{
-        "value": "Test Engineering Project",
-        "source": "rules",
-        "start": 100,
-        "end": 110
-      }]
+      "primary_value": "合肥市公安局瑶海分局雪亮工程支网一期、二期、三期运维服务采购项目",
+      "confidence": 0.99,
+      "values": [
+        {
+          "source": "regex_enhanced",
+          "location": {
+            "document_id": "example.pdf",
+            "page": 1,
+            "source_text": "合肥市公安局瑶海分局雪亮工程支网一期、二期、三期运维服务采购项目"
+          }
+        }
+      ]
     }
   }
 }
 ```
 
----
+For PDF text that can be located reliably, evidence can also carry a real `bbox`. Markdown/TXT do not receive fabricated physical pages or coordinates; they keep character spans, lines and section paths instead.
 
-## 🎯 Use Cases
+See [`docs/evidence.md`](docs/evidence.md).
 
-- **Bidding Agencies**: Batch process tender documents
-- **Evaluation Experts**: Quickly obtain core tender information
-- **Regulatory Bodies**: Automate compliance review
-- **Research Institutions**: Tender data analysis
-- **Enterprise Bidding**: Competitor analysis
+## 🛠️ Quick start
 
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
+Requires Python **3.12+**.
 
 ```bash
-# Installation failure
-python --version  # Ensure 3.12+
-uv sync --reinstall
+git clone https://github.com/Inupedia/tender-extract.git
+cd tender-extract
 
-# Ollama connection failure
-curl http://your-ollama-server:11434/api/tags
-export OLLAMA_BASE_URL=http://your-ollama-server:11434
-
-# Debugging tips
-uv run tender-extract extract ./examples/ --out ./out --verbose --debug
+uv sync --extra pdf
+uv run tender-extract extract examples/example.pdf --out out
 ```
 
----
+Batch mode:
 
-## 📝 License
+```bash
+uv run tender-extract extract examples/ --pattern "*.pdf" --llm none --out out
+```
 
-MIT License - See [LICENSE](LICENSE) file for details.
+List configured LLM providers:
+
+```bash
+uv run tender-extract providers
+```
+
+The provider registry includes SiliconFlow, OpenAI, Azure OpenAI, Anthropic, Gemini, DeepSeek, DashScope/Qwen, Kimi, Zhipu, Volcengine, Ollama, OpenRouter, Groq, Together, Mistral, xAI and generic OpenAI-compatible endpoints.
+
+## 📦 Tender Package
+
+Real projects contain multiple documents, not one PDF:
+
+```text
+project/
+├── tender.pdf
+├── amendment-01.pdf
+├── clarification-01.pdf
+├── bidder-a.pdf
+└── bidder-b.pdf
+```
+
+`tender-package` models document roles, revisions and supersedes relationships. Procurement-side documents create an effective view, while bidder submissions remain isolated by bidder.
+
+```bash
+uv run tender-package validate package.yaml
+uv run tender-package inspect package.yaml
+uv run tender-package extract package.yaml --out out/package.json
+```
+
+See [`docs/tender-package.md`](docs/tender-package.md).
+
+## 👀 Human review → Gold Dataset
+
+```bash
+uv run tender-review run examples/example.pdf --queue .review/queue.jsonl
+uv run tender-review list --queue .review/queue.jsonl
+uv run tender-review resolve REVIEW_ID --action correct --value "correct value"
+uv run tender-review export --queue .review/queue.jsonl --out eval/gold-reviewed.jsonl
+```
+
+The feedback loop is:
+
+**extract → review → human decision → Gold Dataset → regression / F1 gate**
+
+See [`docs/human-review.md`](docs/human-review.md).
+
+## 📈 Evaluation
+
+```bash
+uv run tender-extract eval eval/gold.jsonl
+uv run tender-extract eval eval/gold.jsonl --fail-under 0.95
+```
+
+Live SiliconFlow evaluation:
+
+```bash
+export SILICONFLOW_API_KEY=your-key
+uv run tender-extract eval eval/gold-siliconflow.jsonl \
+  --llm siliconflow \
+  --model Qwen/Qwen3-8B \
+  --fail-under 1.0
+```
+
+Reports include per-field Precision / Recall / F1, Micro F1, Macro F1, exact-case accuracy, failures and LLM call counts.
+
+See [`docs/evaluation.md`](docs/evaluation.md).
+
+## 📚 Committed acceptance corpus
+
+`examples/` contains the historical 10-page sample plus 12 public tender/procurement PDFs from Beijing, Shaanxi, Henan and Shanghai. The 13 files total **911 pages**.
+
+Official source URLs, original sizes, page counts and SHA256 values for the public corpus are recorded in [`examples/public-corpus.lock.json`](examples/public-corpus.lock.json). Candidate source metadata is stored in [`examples/public-sources.json`](examples/public-sources.json).
+
+Normal CI does **not** depend on those government sites. It runs entirely against the committed corpus:
+
+```bash
+uv run python scripts/acceptance_corpus.py \
+  --examples examples \
+  --min-pdfs 13 \
+  --report artifacts/real-pdf-acceptance.json
+```
+
+## ⚙️ Pipeline
+
+```text
+PDF / DOCX / MD / TXT
+        │
+        ▼
+  Document Parser ───── OCR fallback
+        │
+        ▼
+  Chunk + Module Router
+        │
+        ▼
+ Regex / Dictionary / NER
+        │
+        ├── high confidence ───────────────┐
+        │                                  │
+        └── low/conflict/missing → LLM ───┤
+                                           ▼
+                                  Conflict Resolution
+                                           │
+                                           ▼
+                                  Evidence Locator
+                                  page / bbox / section
+                                           │
+                                           ▼
+                                      Pydantic JSON
+```
+
+The principle is simple: **do not spend model latency and cost on deterministic facts, and do not pretend a rule is certain when it is not.**
+
+## 🧪 CI
+
+The repository validates:
+
+```text
+unit
+integration
+E2E
+legacy regression
+package build
+combined coverage
+real PDF acceptance (13 PDFs / 911 pages)
+SiliconFlow live acceptance
+```
+
+Real PDF acceptance is fully offline. SiliconFlow live validation uses a GitHub Actions secret and does not commit the API key to source or artifacts.
+
+## ⚠️ Boundaries
+
+- The 34.62 pages/s benchmark excludes OCR and network LLM calls.
+- OCR on scanned documents is substantially slower than text-layer PDF parsing.
+- LLM latency depends on provider/model/network; persistent cache is strongly recommended.
+- PDF can provide physical page and bbox provenance; non-paginated formats do not receive fake coordinates.
+- Chinese tender/procurement templates vary by industry and region, so Gold Datasets should keep growing with real reviewed cases.
+
+## 📄 License
+
+MIT License
