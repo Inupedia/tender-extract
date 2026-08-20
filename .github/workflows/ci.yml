@@ -22,8 +22,16 @@ jobs:
         run: python -m pip install --upgrade uv
       - name: Sync unit test dependencies
         run: uv sync --extra dev
-      - name: Run unit tests
-        run: uv run pytest -q tests/unit -m unit
+      - name: Run unit tests with coverage data
+        env:
+          COVERAGE_FILE: .coverage.unit
+        run: uv run coverage run --parallel-mode -m pytest -q tests/unit -m unit
+      - name: Upload unit coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-unit
+          path: .coverage.unit.*
+          include-hidden-files: true
 
   integration:
     name: integration
@@ -38,8 +46,16 @@ jobs:
         run: python -m pip install --upgrade uv
       - name: Sync document integration dependencies
         run: uv sync --extra dev --extra pdf --extra docx
-      - name: Run integration tests
-        run: uv run pytest -q tests/integration -m integration
+      - name: Run integration tests with coverage data
+        env:
+          COVERAGE_FILE: .coverage.integration
+        run: uv run coverage run --parallel-mode -m pytest -q tests/integration -m integration
+      - name: Upload integration coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-integration
+          path: .coverage.integration.*
+          include-hidden-files: true
 
   e2e:
     name: e2e
@@ -54,11 +70,50 @@ jobs:
         run: python -m pip install --upgrade uv
       - name: Sync E2E dependencies
         run: uv sync --extra dev
-      - name: Run CLI E2E tests
-        run: uv run pytest -q tests/e2e -m e2e
+      - name: Run CLI E2E tests with coverage data
+        env:
+          COVERAGE_FILE: .coverage.e2e
+        run: uv run coverage run --parallel-mode -m pytest -q tests/e2e -m e2e
+      - name: Upload E2E coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-e2e
+          path: .coverage.e2e.*
+          include-hidden-files: true
+
+  regression:
+    name: legacy regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+      - name: Sync regression dependencies
+        run: uv sync --extra dev
+      - name: Compile package
+        run: uv run python -m compileall -q src
+      - name: Run existing regression tests with coverage data
+        env:
+          COVERAGE_FILE: .coverage.regression
+        run: >-
+          uv run coverage run --parallel-mode -m pytest -q
+          tests/test_pipeline.py
+          tests/test_module_router.py
+          tests/test_hardening.py
+      - name: Upload regression coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-regression
+          path: .coverage.regression.*
+          include-hidden-files: true
 
   coverage:
-    name: regression + coverage
+    name: combined coverage
+    needs: [unit, integration, e2e, regression]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -68,25 +123,20 @@ jobs:
           python-version: "3.12"
       - name: Install uv
         run: python -m pip install --upgrade uv
-      - name: Sync core test dependencies
+      - name: Sync coverage tooling
         run: uv sync --extra dev
-      - name: Compile package
-        run: uv run python -m compileall -q src
-      - name: Run core regression paths with coverage
-        run: >-
-          uv run pytest -q
-          tests/test_pipeline.py
-          tests/test_module_router.py
-          tests/test_hardening.py
-          tests/unit
-          tests/integration/test_pipeline_integration.py
-          tests/e2e
-          -m "not live"
-          --cov=tender_extract
-          --cov-branch
-          --cov-report=term-missing
-          --cov-report=xml
-          --cov-fail-under=65
+      - name: Download coverage data
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-data-*
+          path: .coverage-data
+          merge-multiple: true
+      - name: Combine coverage and enforce floor
+        run: |
+          cp .coverage-data/.coverage.* .
+          uv run coverage combine
+          uv run coverage report --fail-under=65
+          uv run coverage xml
       - name: Upload coverage XML
         uses: actions/upload-artifact@v4
         with:
