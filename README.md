@@ -16,7 +16,61 @@
 - 📦 **一个项目可以多份文件一起处理**：招标文件、补遗、澄清、多个投标人的文件统一建模，同时保留版本关系和投标人隔离。
 - ✅ **能持续变准**：人工复核结果可以回流成标注数据，并通过 F1 评测和持续集成防止回归。
 
-## 30 秒跑起来
+## 最省事：直接启动 HTTP 服务
+
+不需要先配 Python 环境，直接拉取服务镜像：
+
+```bash
+docker pull ghcr.io/inupedia/tender-extract-server:0.1.0
+
+docker run --rm \
+  -p 8000:8000 \
+  -v tender-extract-cache:/data/cache \
+  ghcr.io/inupedia/tender-extract-server:0.1.0
+```
+
+上传一份 PDF：
+
+```bash
+curl -s \
+  -F "file=@example.pdf" \
+  "http://localhost:8000/v1/extract?llm_provider=none"
+```
+
+接口文档启动后直接打开 `http://localhost:8000/docs`。
+
+服务提供：
+
+```text
+GET  /healthz      健康检查
+GET  /v1/info      版本与能力
+POST /v1/extract   上传 PDF / DOCX / Markdown / TXT 并返回结构化结果
+```
+
+默认不返回敏感个人信息。需要给服务加访问密钥时：
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e TENDER_SERVER_API_KEY=your-secret \
+  ghcr.io/inupedia/tender-extract-server:0.1.0
+```
+
+调用时增加 `X-API-Key` 请求头即可。
+
+需要大模型时把对应密钥传入容器，例如 SiliconFlow：
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e SILICONFLOW_API_KEY=your-key \
+  -e TENDER_SERVER_LLM_PROVIDER=siliconflow \
+  -e TENDER_SERVER_LLM_MODEL=Qwen/Qwen3-8B \
+  -v tender-extract-cache:/data/cache \
+  ghcr.io/inupedia/tender-extract-server:0.1.0
+```
+
+镜像由 GitHub Actions 构建并发布到 GitHub Container Registry，同时提供版本号、`latest` 和提交 SHA 标签。
+
+## 本地命令行
 
 要求 Python **3.12+**。
 
@@ -192,14 +246,15 @@ uv run tender-extract eval eval/gold.jsonl --fail-under 0.95
 
 | 能力 | 当前支持 |
 |---|---|
+| 使用方式 | Python 命令行、HTTP 服务、Docker / GHCR 镜像 |
 | 文档格式 | PDF、DOCX、Markdown、TXT |
-| 扫描件 | 可选 OCR |
+| 扫描件 | 可选 OCR；轻量服务镜像默认不内置 PaddleOCR |
 | 字段抽取 | 规则、词典、命名实体识别、大模型复核 |
 | 证据定位 | 文件、页码、章节、行号、原文、PDF 坐标 |
 | 项目级处理 | 多文件、版本、补遗/澄清、投标人隔离 |
 | 人工复核 | 接受、修改、驳回、导出标注集 |
 | 质量评测 | 精确率、召回率、F1、持续集成质量门禁 |
-| 隐私 | 默认脱敏敏感个人信息 |
+| 隐私 | 默认脱敏敏感个人信息；服务可选 API Key |
 
 更多细节：
 
