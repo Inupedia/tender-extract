@@ -9,7 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  unit:
+    name: unit
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -19,11 +20,82 @@ jobs:
           python-version: "3.12"
       - name: Install uv
         run: python -m pip install --upgrade uv
-      - name: Sync development dependencies
+      - name: Sync unit test dependencies
         run: uv sync --extra dev
+      - name: Run unit tests
+        run: uv run pytest -q tests/unit -m unit
+
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+      - name: Sync document integration dependencies
+        run: uv sync --extra dev --extra pdf --extra docx
+      - name: Run integration tests
+        run: uv run pytest -q tests/integration -m integration
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+      - name: Sync E2E dependencies
+        run: uv sync --extra dev
+      - name: Run CLI E2E tests
+        run: uv run pytest -q tests/e2e -m e2e
+
+  coverage:
+    name: regression + coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+      - name: Sync full non-OCR test dependencies
+        run: uv sync --extra dev --extra pdf --extra docx
       - name: Compile package
         run: uv run python -m compileall -q src
-      - name: Run tests
-        run: uv run pytest -q
+      - name: Run all non-live tests with coverage
+        run: >-
+          uv run pytest -q -m "not live"
+          --cov=tender_extract
+          --cov-branch
+          --cov-report=term-missing
+          --cov-report=xml
+          --cov-fail-under=65
+      - name: Upload coverage XML
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+  package:
+    name: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: python -m pip install --upgrade uv
       - name: Build package
         run: uv build
