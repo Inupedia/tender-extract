@@ -10,6 +10,11 @@ from .extraction_engine import ExtractionEngine
 logger = logging.getLogger(__name__)
 
 
+_PROJECT_NAME_NEXT_FIELD = re.compile(
+    r"(?:项目编号|采购项目编号|招标编号|标段编号|项目地点|建设地点|项目单位|招标人|采购人|投标人|采购代理机构|代理机构|采购方式|预算金额|项目预算|最高限价)[：:]"
+)
+
+
 class ConfigurableExtractionEngine(ExtractionEngine):
     def __init__(self, custom_patterns: dict[str, list[dict[str, Any]]] | None = None) -> None:
         super().__init__()
@@ -20,12 +25,10 @@ class ConfigurableExtractionEngine(ExtractionEngine):
     ) -> tuple[Optional[str], Optional[str], Optional[str]]:
         cleaned, unit, normalized = super()._clean_value(value, field_name, full_match)
         if field_name == "project_name" and cleaned:
-            # 宽松项目名称规则不能跨行吞掉后续字段。保留第一行，并在常见字段标签前截断。
-            cleaned = re.split(
-                r"[\r\n]+|(?:项目编号|招标编号|项目地点|建设地点|招标人|采购人|投标人)[：:]",
-                cleaned,
-                maxsplit=1,
-            )[0].strip()
+            # 真实采购文件常把项目名称在 PDF 中折成两行。先在明确的下一个字段标签前截断，
+            # 再合并仅由版式造成的换行；这样既保留完整项目名，也不回退到 PR1 的跨字段吞噬问题。
+            cleaned = _PROJECT_NAME_NEXT_FIELD.split(cleaned, maxsplit=1)[0]
+            cleaned = re.sub(r"\s*[\r\n]+\s*", "", cleaned).strip()
             if len(cleaned) < 5:
                 return None, unit, normalized
         return cleaned, unit, normalized
