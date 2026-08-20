@@ -9,7 +9,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .schema import ExtractionResult
+from .schema import EvidenceLocation, ExtractionResult
 
 ReviewAction = Literal["accept", "correct", "reject"]
 ReviewStatus = Literal["pending", "resolved"]
@@ -38,6 +38,7 @@ class ReviewEvidence(BaseModel):
     source: str
     confidence: float = Field(ge=0.0, le=1.0)
     ref: Optional[str] = None
+    location: Optional[EvidenceLocation] = None
 
 
 class ReviewDecision(BaseModel):
@@ -122,6 +123,7 @@ def build_review_items(
                         source=span.source,
                         confidence=span.confidence,
                         ref=(span.ref[:800] if span.ref else None),
+                        location=span.location,
                     )
                     for span in extracted.values[:5]
                 ],
