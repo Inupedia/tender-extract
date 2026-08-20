@@ -14,7 +14,6 @@ import json
 import shutil
 import sys
 import time
-import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -31,7 +30,13 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def download(url: str, target: Path, retries: int = 2) -> None:
+def download(url: str, target: Path, retries: int = 1, timeout_seconds: int = 15) -> None:
+    """Download one candidate quickly; corpus construction has fallback sources.
+
+    A public authority endpoint may be slow or transiently unavailable. The
+    acceptance corpus validates tender-extract, not remote-site uptime, so a
+    bounded timeout is preferable to blocking the whole PR for minutes.
+    """
     target.parent.mkdir(parents=True, exist_ok=True)
     request = urllib.request.Request(
         url,
@@ -44,7 +49,7 @@ def download(url: str, target: Path, retries: int = 2) -> None:
     last_error: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            with urllib.request.urlopen(request, timeout=45) as response, target.open("wb") as out:
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response, target.open("wb") as out:
                 shutil.copyfileobj(response, out)
             if target.stat().st_size < 1024 or target.read_bytes()[:5] != b"%PDF-":
                 raise ValueError("response is not a valid PDF")
@@ -53,7 +58,7 @@ def download(url: str, target: Path, retries: int = 2) -> None:
             last_error = exc
             target.unlink(missing_ok=True)
             if attempt < retries:
-                time.sleep(1.5 * (attempt + 1))
+                time.sleep(1.0)
     assert last_error is not None
     raise last_error
 
