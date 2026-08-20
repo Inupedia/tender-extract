@@ -144,6 +144,11 @@ def validate_package_manifest(
         for target in document.supersedes:
             if target not in by_id:
                 raise ValueError(f"Document {document.id} supersedes unknown document {target}")
+            if _document_scope(document) != _document_scope(by_id[target]):
+                raise ValueError(
+                    f"Document {document.id} cannot supersede {target} across scope "
+                    f"({_document_scope(document)} != {_document_scope(by_id[target])})"
+                )
 
     _validate_supersedes_acyclic(manifest.documents)
     _validate_logical_revisions(manifest.documents)
@@ -193,6 +198,10 @@ def validate_package_manifest(
                 superseded_by=[winner.id],
             )
     return resolutions
+
+
+def _document_scope(document: PackageDocument) -> str:
+    return f"bidder:{document.bidder}" if document.bidder else "tender"
 
 
 def _validate_supersedes_acyclic(documents: list[PackageDocument]) -> None:
@@ -263,17 +272,13 @@ def extract_package(
         if not resolution.active:
             continue
         extraction = documents[document.id].extraction
-        target: Optional[dict[str, list[PackageFieldSource]]] = None
+        target: dict[str, list[PackageFieldSource]]
         if document.role in {"tender", "amendment", "clarification"}:
             target = tender_sources
         elif document.role == "bid":
             target = bidder_sources[document.bidder or "__unscoped__"]
         elif document.role == "attachment":
-            target = (
-                bidder_sources[document.bidder]
-                if document.bidder
-                else tender_sources
-            )
+            target = bidder_sources[document.bidder] if document.bidder else tender_sources
         else:
             target = tender_sources
 
