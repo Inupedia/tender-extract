@@ -30,6 +30,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
 ]
 pdf = [
     "pymupdf>=1.23.0",
@@ -47,6 +48,7 @@ all = [
     "paddlepaddle>=3.0.0",
     "paddleocr>=3.0.0",
     "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
 ]
 
 [project.scripts]
@@ -58,6 +60,21 @@ packages = ["src/tender_extract"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = ["--strict-markers"]
+markers = [
+    "unit: isolated fast tests without filesystem/network integration",
+    "integration: tests crossing package components or document formats",
+    "e2e: end-to-end tests through public CLI or full pipeline entry points",
+    "live: opt-in tests that call external services and require secrets",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["tender_extract"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
 
 [tool.typer]
 help = "面向中文标书的混合抽取流水线"
