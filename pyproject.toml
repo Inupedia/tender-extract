@@ -69,6 +69,7 @@ markers = [
 ]
 
 [tool.coverage.run]
+core = "sysmon"
 relative_files = true
 source = ["tender_extract"]
 
