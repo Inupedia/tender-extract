@@ -10,8 +10,20 @@ from .extraction_engine import ExtractionEngine
 logger = logging.getLogger(__name__)
 
 
-_PROJECT_NAME_NEXT_FIELD = re.compile(
-    r"(?:项目编号|采购项目编号|招标编号|标段编号|项目地点|建设地点|项目单位|招标人|采购人|投标人|采购代理机构|代理机构|采购方式|预算金额|项目预算|最高限价)[：:]"
+_PROJECT_FIELD_LABELS = (
+    r"项目编号|采购项目编号|招标编号|标段编号|项目地点|建设地点|项目单位|"
+    r"招标人|采购人|投标人|采购代理机构|代理机构|采购方式|预算金额|项目预算|最高限价"
+)
+_PROJECT_NAME_NEXT_FIELD = re.compile(rf"(?:{_PROJECT_FIELD_LABELS})[：:]")
+_WRAPPED_PROJECT_NAME_PATTERN = (
+    re.compile(
+        rf"项目名称[：:]\s*"
+        rf"([^\r\n]{{5,120}}(?:\r?\n(?!\s*(?:{_PROJECT_FIELD_LABELS})[：:])[^\r\n]{{2,120}}){{1,2}})"
+        rf"(?=\r?\n\s*(?:{_PROJECT_FIELD_LABELS})[：:])",
+        re.IGNORECASE | re.MULTILINE,
+    ),
+    0.99,
+    "PDF折行项目名称",
 )
 _TENDERER_BAD = re.compile(
     r"(?:https?://|www\.|\.gov\.|\.cn\b|渠道查询|信用中国|供应商的姓名|邮编|联系电话|收费管理暂行办法)",
@@ -29,7 +41,7 @@ _DEADLINE_PATTERNS: list[tuple[re.Pattern, float, str]] = [
     (
         re.compile(
             r"(?:提交投标文件截止时间|提交响应文件截止时间|响应文件提交截止时间|投标截止时间|截止/谈判时间)[：:]?\s*"
-            r"(20\d{2}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}\s*(?:日)?(?:\s+\d{1,2}\s*(?::|时)\s*\d{2}(?::\d{2})?)?)",
+            r"(20\d{2}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}\s*(?:日)?(?:\s*\d{1,2}\s*(?::|时)\s*\d{2}(?::\d{2})?)?)",
             re.IGNORECASE | re.MULTILINE,
         ),
         0.98,
@@ -49,6 +61,11 @@ _DEADLINE_PATTERNS: list[tuple[re.Pattern, float, str]] = [
 class ConfigurableExtractionEngine(ExtractionEngine):
     def __init__(self, custom_patterns: dict[str, list[dict[str, Any]]] | None = None) -> None:
         super().__init__()
+        # PDF 文本层会把一个视觉项目名称折成多行。专用模式优先于单行规则，
+        # 但必须在明确的下一个字段标签前结束，避免重新引入跨字段吞噬。
+        self._compiled_patterns.setdefault("project_name", []).insert(
+            0, _WRAPPED_PROJECT_NAME_PATTERN
+        )
         # `legal_representative` 只能表示法定代表人，不能把联系人/项目经理/授权代表混成同一字段。
         self._compiled_patterns["legal_representative"] = [
             item
