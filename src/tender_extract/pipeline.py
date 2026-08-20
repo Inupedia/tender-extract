@@ -9,6 +9,7 @@ from .chunker import ChunkingConfig, DocumentChunker
 from .configurable_engine import ConfigurableExtractionEngine
 from .dedupe import DeduplicationEngine
 from .document_parser import DocumentParser
+from .evidence import EvidenceLocator
 from .field_registry import get_expected_fields_for_modules
 from .llm_router import LLMRouter
 from .merge import FieldMerger
@@ -50,7 +51,7 @@ class ExtractionPipeline:
         self.llm = LLMRouter(config)
         self.ner = NERExtractor(use_foolnltk=config.use_ner) if config.use_ner else None
 
-    def extract_file(self, file_path: str) -> ExtractionResult:
+    def extract_file(self, file_path: str, *, document_id: str | None = None) -> ExtractionResult:
         started = time.time()
         warnings: list[str] = []
         errors: list[str] = []
@@ -138,6 +139,14 @@ class ExtractionPipeline:
         fields = self.merger.resolve_conflicts(fields)
         fields = self.engine._post_process(fields)
 
+        # 统一在规则/NER/LLM 全部合并后定位证据，避免每个抽取器重复维护页码/章节逻辑。
+        EvidenceLocator(
+            parsed=parsed,
+            file_path=path,
+            document_id=document_id or path.name,
+        ).enrich_fields(fields)
+        evidence_stats = _evidence_stats(fields)
+
         personnel_records = [
             PersonnelRecord(
                 name=p.name,
@@ -181,6 +190,7 @@ class ExtractionPipeline:
             "certificates_count": len(certificate_records),
             "original_format": parsed.original_format,
             "ocr_pages": (parsed.metadata or {}).get("ocr_pages", 0),
+            **evidence_stats,
         }
 
         result = ExtractionResult(
@@ -214,6 +224,19 @@ class ExtractionPipeline:
         results = engine.process_chunks(chunks)
         kept = [chunk for chunk, result in zip(chunks, results) if not result.is_duplicate]
         return kept, len(chunks) - len(kept)
+
+
+def _evidence_stats(fields: dict[str, ExtractedField]) -> dict[str, int]:
+    spans = [span for field in fields.values() for span in field.values]
+    located = [span for span in spans if span.location is not None and span.location.source_start >= 0]
+    paged = [span for span in spans if span.location is not None and span.location.page is not None]
+    boxed = [span for span in spans if span.location is not None and span.location.bbox is not None]
+    return {
+        "evidence_span_count": len(spans),
+        "evidence_located_count": len(located),
+        "evidence_page_count": len(paged),
+        "evidence_bbox_count": len(boxed),
+    }
 
 
 def _missing_field_context(
