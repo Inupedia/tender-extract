@@ -2,6 +2,7 @@ import pytest
 
 from tender_extract.config import build_processing_config
 from tender_extract.dedupe import DeduplicationEngine
+from tender_extract.extraction_engine import ExtractionEngine
 from tender_extract.field_registry import get_expected_fields_for_modules
 from tender_extract.pipeline import _chunk_offset
 from tender_extract.pii import redact_for_cloud_llm
@@ -38,6 +39,16 @@ def test_dedupe_marks_exact_duplicate_by_fingerprint():
     assert results[1].is_duplicate is True
     assert results[1].duplicate_of == "a"
     assert results[2].is_duplicate is False
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="known bug: raw single-digit numeric captures are dropped by len(raw) < 2 before amount cleaning",
+)
+def test_single_digit_wan_deposit_is_not_dropped():
+    fields = ExtractionEngine().extract_all_fields("投标保证金：5万元")
+
+    assert fields["deposit"].values[0].normalized_value == "50000.00"
 
 
 def test_chunk_offset_uses_line_anchor_for_repeated_text():
