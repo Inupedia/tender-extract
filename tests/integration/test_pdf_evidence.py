@@ -41,7 +41,7 @@ def test_pdf_extraction_attaches_page_and_bbox(tmp_path: Path):
     assert span.location is not None
     assert span.location.document_id == "pdf-evidence-doc"
     assert span.location.page == 1
-    assert span.location.source_text == "Tender Code: TEST-2026-001"
+    assert span.location.source_text == "TEST-2026-001"
     assert span.location.bbox is not None
     assert span.location.bbox.x1 > span.location.bbox.x0
     assert span.location.bbox.y1 > span.location.bbox.y0
