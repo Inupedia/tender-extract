@@ -39,6 +39,8 @@ def mask_result(result: ExtractionResult) -> ExtractionResult:
             span.value = mask_text(span.value)
             if span.ref:
                 span.ref = mask_text(span.ref)
+            if span.location and span.location.source_text:
+                span.location.source_text = mask_text(span.location.source_text)
     masked_people: list[PersonnelRecord] = []
     for person in result.personnel:
         data = person.model_dump()

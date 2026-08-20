@@ -121,7 +121,8 @@ def test_audit_merger_keeps_alternative_candidates():
 
 def test_pipeline_recovers_field_that_rules_never_created(tmp_path: Path, monkeypatch):
     path = tmp_path / "missing.md"
-    path.write_text("# 项目概况\n项目名称：某水库除险加固工程\n建设地点位于测试县。\n", encoding="utf-8")
+    content = "# 项目概况\n项目名称：某水库除险加固工程\n建设地点位于测试县。\n"
+    path.write_text(content, encoding="utf-8")
     pipeline = ExtractionPipeline(
         ProcessingConfig(
             llm_provider="siliconflow",
@@ -148,6 +149,17 @@ def test_pipeline_recovers_field_that_rules_never_created(tmp_path: Path, monkey
 
     monkeypatch.setattr(pipeline.llm, "extract_with_llm", fake_extract)
     result = pipeline.extract_file(str(path))
+    span = result.fields["construction_site"].values[0]
+
     assert result.fields["construction_site"].primary_value == "测试县"
-    assert result.fields["construction_site"].values[0].source == "llm"
-    assert result.fields["construction_site"].values[0].start == -1
+    assert span.source == "llm"
+    assert span.start == content.index("测试县")
+    assert span.end == span.start + len("测试县")
+    assert span.location is not None
+    assert span.location.document_id == "missing.md"
+    assert span.location.section_path == ["项目概况"]
+    assert span.location.line_start == 3
+    assert span.location.line_end == 3
+    assert span.location.source_text == "测试县"
+    assert span.location.source_start == span.start
+    assert span.location.source_end == span.end

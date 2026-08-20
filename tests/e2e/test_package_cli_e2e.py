@@ -106,11 +106,20 @@ def test_package_validate_and_extract_effective_views(tmp_path: Path):
     assert project_scope["primary_value"] == "修订后的招标范围"
     assert project_scope["selected_from_document"] == "amendment-1"
     assert "原招标范围" in project_scope["conflicts"]
+    assert project_scope["selected_evidence"]
+    assert project_scope["selected_evidence"][0]["document_id"] == "amendment-1"
+    assert project_scope["selected_evidence"][0]["source_text"] == "修订后的招标范围"
+    assert project_scope["selected_evidence"][0]["source_start"] > 0
 
     clarification = payload["tender_fields"]["clarification_note"]
     assert clarification["primary_value"] == "第二次澄清"
     assert clarification["selected_from_document"] == "clarification-v2"
+    assert clarification["selected_evidence"][0]["document_id"] == "clarification-v2"
 
-    assert payload["bidder_fields"]["A公司"]["commitment"]["primary_value"] == "A公司施工方案"
-    assert payload["bidder_fields"]["B公司"]["commitment"]["primary_value"] == "B公司施工方案"
-    assert "B公司施工方案" not in payload["bidder_fields"]["A公司"]["commitment"]["values"]
+    bidder_a = payload["bidder_fields"]["A公司"]["commitment"]
+    bidder_b = payload["bidder_fields"]["B公司"]["commitment"]
+    assert bidder_a["primary_value"] == "A公司施工方案"
+    assert bidder_b["primary_value"] == "B公司施工方案"
+    assert "B公司施工方案" not in bidder_a["values"]
+    assert bidder_a["selected_evidence"][0]["document_id"] == "bid-a"
+    assert bidder_b["selected_evidence"][0]["document_id"] == "bid-b"
