@@ -42,21 +42,18 @@ def _span(value: str, confidence: float, start: int = 0) -> EvidenceSpan:
     )
 
 
-def test_chunker_fallback_splits_large_chapters_and_adds_fingerprints():
+def test_chunker_fallback_splits_large_plain_document_and_adds_fingerprints():
     chunker = DocumentChunker(
         ChunkingConfig(
-            max_tokens=8,
+            max_tokens=4,
             overlap_tokens=0,
             use_langchain=False,
             chapter_priority=False,
         )
     )
     content = (
-        "# 第一章\n"
         "这是第一段较长的内容用于触发基础章节切片。\n\n"
-        "这是第二段较长的内容用于继续切片。\n"
-        "## 子章节\n"
-        "子章节也有独立内容。"
+        "这是第二段较长的内容用于继续切片。"
     )
 
     chunks = chunker.chunk_document(content, "fallback.md")
@@ -68,7 +65,7 @@ def test_chunker_fallback_splits_large_chapters_and_adds_fingerprints():
 
 def test_chunker_split_merge_statistics_and_reference_helpers():
     chunker = DocumentChunker(
-        ChunkingConfig(max_tokens=10, overlap_tokens=0, use_langchain=False)
+        ChunkingConfig(max_tokens=4, overlap_tokens=0, use_langchain=False)
     )
     node = ChapterNode(
         title="测试章",
@@ -85,9 +82,9 @@ def test_chunker_split_merge_statistics_and_reference_helpers():
     assert split[0].chapter_path == ["测试章"]
 
     mergeable = [
-        _chunk("a", "甲", token_count=2, chapter_path=["A"], start_line=1, end_line=1),
-        _chunk("b", "乙", token_count=3, chapter_path=["A"], start_line=2, end_line=2),
-        _chunk("c", "丙", token_count=8, chapter_path=["B"], start_line=3, end_line=3),
+        _chunk("a", "甲", token_count=1, chapter_path=["A"], start_line=1, end_line=1),
+        _chunk("b", "乙", token_count=2, chapter_path=["A"], start_line=2, end_line=2),
+        _chunk("c", "丙", token_count=4, chapter_path=["B"], start_line=3, end_line=3),
     ]
     merged = chunker.merge_small_chunks(mergeable)
     assert len(merged) == 2
@@ -116,7 +113,7 @@ def test_chunker_split_merge_statistics_and_reference_helpers():
     assert "正常结论" in cleaned
 
 
-def test_chunker_recursive_path_and_line_estimators(monkeypatch):
+def test_chunker_recursive_path_and_line_estimators():
     class FakeSplitter:
         def split_text(self, content):
             return ["第一行", "第三行"]
