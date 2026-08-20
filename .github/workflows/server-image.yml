@@ -132,5 +132,5 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.test-image.outputs.version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          provenance: true
-          sbom: true
+          provenance: false
+          sbom: false
