@@ -2,28 +2,30 @@ name: Real PDF Acceptance
 
 on:
   push:
-    branches: [feat/real-world-acceptance-readme]
+    branches: [main]
+    paths:
+      - "src/**"
+      - "scripts/acceptance_corpus.py"
+      - "examples/**"
+      - ".github/workflows/acceptance.yml"
+      - "README.md"
   pull_request:
     paths:
       - "src/**"
       - "scripts/acceptance_corpus.py"
-      - "scripts/fetch_public_examples.py"
       - "examples/**"
       - ".github/workflows/acceptance.yml"
       - "README.md"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   acceptance:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
-          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -31,50 +33,15 @@ jobs:
         run: python -m pip install --upgrade uv
       - name: Install package with PDF support
         run: uv sync --extra dev --extra pdf
-      - name: Run committed example acceptance
-        run: uv run python scripts/acceptance_corpus.py --min-pdfs 1 --report artifacts/acceptance.json
-      - name: Download 12 official public tender PDFs and build fixtures
-        run: >-
-          uv run python scripts/fetch_public_examples.py
-          --target-count 12
-          --max-full-mb 3
-          --excerpt-pages 8
-      - name: Run full-original public corpus acceptance
-        run: >-
-          uv run python scripts/acceptance_corpus.py
-          --examples .cache/public-full
-          --min-pdfs 12
-          --no-require-example
-          --report artifacts/public-full-acceptance.json
-      - name: Run compact fixture acceptance
+      - name: Run committed 13-PDF acceptance corpus
         run: >-
           uv run python scripts/acceptance_corpus.py
           --examples examples
           --min-pdfs 13
-          --report artifacts/fixture-acceptance.json
-      - name: Persist vetted public fixtures on PR branch
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- examples/public-*.pdf examples/public-corpus.lock.json
-          if git diff --cached --quiet; then
-            echo "Public fixtures already committed"
-            exit 0
-          fi
-          git commit -m "test: add vetted public tender PDF corpus [examples-materialized]"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-      - name: Upload acceptance reports
+          --report artifacts/real-pdf-acceptance.json
+      - name: Upload acceptance report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: real-pdf-acceptance
-          path: artifacts/*.json
-      - name: Upload vetted public fixtures
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: public-pdf-fixtures
-          path: |
-            examples/public-*.pdf
-            examples/public-corpus.lock.json
+          path: artifacts/real-pdf-acceptance.json
