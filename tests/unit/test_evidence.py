@@ -31,6 +31,7 @@ def test_markdown_evidence_has_document_section_lines_and_source_span(tmp_path: 
     )
     match = "项目编号：QJ-2026-001"
     start = content.index(match)
+    value_start = content.index("QJ-2026-001")
     span = EvidenceSpan(
         value="QJ-2026-001",
         start=start,
@@ -53,9 +54,11 @@ def test_markdown_evidence_has_document_section_lines_and_source_span(tmp_path: 
     assert span.location.section_path == ["招标文件", "项目概况"]
     assert span.location.line_start == 6
     assert span.location.line_end == 6
-    assert span.location.source_text == match
-    assert span.location.source_start == start
-    assert span.location.source_end == start + len(match)
+    assert span.location.source_text == "QJ-2026-001"
+    assert span.location.source_start == value_start
+    assert span.location.source_end == value_start + len("QJ-2026-001")
+    assert span.start == value_start
+    assert span.end == value_start + len("QJ-2026-001")
 
 
 def test_unlocated_llm_span_recovers_offsets_from_value(tmp_path: Path):
