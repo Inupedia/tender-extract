@@ -2,7 +2,7 @@ name: SiliconFlow Live
 
 on:
   push:
-    branches: [feat/real-world-acceptance-readme]
+    branches: [main]
     paths:
       - "src/**"
       - "tests/live/**"
