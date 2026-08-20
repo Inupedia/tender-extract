@@ -78,6 +78,16 @@ jobs:
         env:
           COVERAGE_FILE: .coverage.e2e
         run: .venv/bin/python -m coverage run --parallel-mode -m pytest -q tests/e2e -m e2e
+      - name: Run baseline extraction quality gate
+        run: >-
+          .venv/bin/tender-extract eval eval/gold.jsonl
+          --fail-under 1.0
+          --report artifacts/baseline-eval.json
+      - name: Upload baseline evaluation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-evaluation
+          path: artifacts/baseline-eval.json
       - name: Upload E2E coverage data
         uses: actions/upload-artifact@v4
         with:
