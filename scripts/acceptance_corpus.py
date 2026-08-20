@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the extraction pipeline against the real PDF examples and write a benchmark report."""
+"""Run the extraction pipeline against real PDF examples and write a benchmark report."""
 from __future__ import annotations
 
 import argparse
@@ -8,6 +8,8 @@ import statistics
 import sys
 import time
 from pathlib import Path
+
+import pymupdf
 
 from tender_extract.pipeline import ExtractionPipeline
 from tender_extract.schema import ProcessingConfig
@@ -21,13 +23,29 @@ def _span_stats(result) -> tuple[int, int, int]:
     return len(located), len(page_located), len(bbox_located)
 
 
-def _top_fields(result, limit: int = 10) -> dict[str, str]:
+def _field_details(result, limit: int = 10) -> dict[str, dict]:
     ranked = sorted(result.fields.items(), key=lambda item: item[1].confidence, reverse=True)
-    return {
-        name: field.primary_value or ""
-        for name, field in ranked[:limit]
-        if field.primary_value
-    }
+    output: dict[str, dict] = {}
+    for name, field in ranked[:limit]:
+        if not field.primary_value:
+            continue
+        primary = field.values[0] if field.values else None
+        location = primary.location if primary is not None else None
+        output[name] = {
+            "value": field.primary_value,
+            "confidence": round(field.confidence, 4),
+            "source": primary.source if primary is not None else None,
+            "page": location.page if location is not None else None,
+            "has_bbox": bool(location and location.bbox),
+            "source_text": location.source_text if location is not None else None,
+            "section_path": location.section_path if location is not None else [],
+        }
+    return output
+
+
+def _physical_pages(path: Path) -> int:
+    with pymupdf.open(path) as doc:
+        return len(doc)
 
 
 def run_one(path: Path) -> dict:
@@ -43,10 +61,11 @@ def run_one(path: Path) -> dict:
     wall_time = time.perf_counter() - started
     stats = result.metadata.extraction_stats
     located, page_located, bbox_located = _span_stats(result)
+    pages = result.metadata.total_pages or _physical_pages(path)
     return {
         "file": path.name,
         "bytes": path.stat().st_size,
-        "pages": int(stats.get("page_count") or stats.get("total_pages") or 0),
+        "pages": pages,
         "format": stats.get("original_format"),
         "fields": len(result.fields),
         "avg_confidence": round(float(stats.get("avg_confidence") or 0.0), 4),
@@ -58,15 +77,21 @@ def run_one(path: Path) -> dict:
         "located_spans": located,
         "page_located_spans": page_located,
         "bbox_located_spans": bbox_located,
-        "top_fields": _top_fields(result),
+        "fields_detail": _field_details(result),
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--examples", default="examples", help="Examples directory")
+    parser.add_argument("--examples", default="examples", help="Directory containing PDFs")
     parser.add_argument("--report", default="artifacts/acceptance.json")
     parser.add_argument("--min-pdfs", type=int, default=1)
+    parser.add_argument(
+        "--require-example",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Apply strict checks to the historical examples/example.pdf fixture",
+    )
     args = parser.parse_args()
 
     examples = Path(args.examples)
@@ -88,6 +113,7 @@ def main() -> int:
         rows.append(row)
         print(
             "  OK "
+            f"pages={row['pages']} "
             f"fields={row['fields']} "
             f"confidence={row['avg_confidence']:.2f} "
             f"time={row['wall_time_seconds']:.3f}s "
@@ -102,17 +128,17 @@ def main() -> int:
         if row["located_spans"] == 0:
             failures.append(f"{path.name}: no structured evidence spans")
 
-    # The historical real example is our strict smoke fixture.
-    example = next((row for row in rows if row["file"] == "example.pdf"), None)
-    if example is None:
-        failures.append("example.pdf did not complete")
-    else:
-        if example["fields"] < 5:
-            failures.append(f"example.pdf: expected >=5 fields, got {example['fields']}")
-        if example["page_located_spans"] == 0:
-            failures.append("example.pdf: no page-aware evidence")
-        if example["bbox_located_spans"] == 0:
-            failures.append("example.pdf: no bbox-aware evidence")
+    if args.require_example:
+        example = next((row for row in rows if row["file"] == "example.pdf"), None)
+        if example is None:
+            failures.append("example.pdf did not complete")
+        else:
+            if example["fields"] < 5:
+                failures.append(f"example.pdf: expected >=5 fields, got {example['fields']}")
+            if example["page_located_spans"] == 0:
+                failures.append("example.pdf: no page-aware evidence")
+            if example["bbox_located_spans"] == 0:
+                failures.append("example.pdf: no bbox-aware evidence")
 
     total_pages = sum(row["pages"] for row in rows)
     total_time = sum(row["wall_time_seconds"] for row in rows)
