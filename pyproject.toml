@@ -30,7 +30,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
-    "pytest-cov>=6.0.0",
+    "coverage>=7.0.0",
 ]
 pdf = [
     "pymupdf>=1.23.0",
@@ -48,7 +48,7 @@ all = [
     "paddlepaddle>=3.0.0",
     "paddleocr>=3.0.0",
     "pytest>=8.0.0",
-    "pytest-cov>=6.0.0",
+    "coverage>=7.0.0",
 ]
 
 [project.scripts]
