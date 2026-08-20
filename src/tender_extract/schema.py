@@ -89,6 +89,7 @@ class DocumentMetadata(BaseModel):
     file_size: int
     total_lines: int
     total_chunks: int
+    total_pages: int = Field(0, ge=0, description="源文档物理页数；非分页格式为0")
     processing_time: float
     extraction_stats: dict[str, Any] = Field(default_factory=dict)
 
