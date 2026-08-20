@@ -15,6 +15,7 @@ from rich.table import Table
 
 from .config import build_processing_config, load_yaml, resolve_config_path
 from .document_parser import DocumentParser
+from .evaluation import EvaluationReport, evaluate_dataset
 from .llm_providers import list_providers
 from .pipeline import ExtractionPipeline
 from .schema import ExtractionResult
@@ -86,6 +87,39 @@ def _print_file_summary(result: ExtractionResult) -> None:
             console.print(f"     [{cert.cert_type}] {cert.cert_number}{expiry}")
     for warning in result.warnings:
         console.print(f"  [yellow]警告: {warning}[/yellow]")
+
+
+def _print_evaluation_summary(report: EvaluationReport) -> None:
+    table = Table(title="抽取质量评测")
+    table.add_column("字段")
+    table.add_column("P", justify="right")
+    table.add_column("R", justify="right")
+    table.add_column("F1", justify="right")
+    table.add_column("TP/FP/FN", justify="right")
+    for field_name, metrics in sorted(report.per_field.items()):
+        table.add_row(
+            field_name,
+            f"{metrics.precision:.3f}",
+            f"{metrics.recall:.3f}",
+            f"{metrics.f1:.3f}",
+            f"{metrics.true_positive}/{metrics.false_positive}/{metrics.false_negative}",
+        )
+    console.print(table)
+    console.print(Panel.fit(
+        f"[bold]Micro F1[/bold]: {report.micro.f1:.3f}\n"
+        f"Macro F1: {report.macro_f1:.3f}\n"
+        f"Exact case accuracy: {report.exact_case_accuracy:.3f} "
+        f"({report.exact_cases}/{report.cases})\n"
+        f"LLM: {report.provider} / {report.model or '默认模型'}\n"
+        f"LLM calls: {report.llm_calls}\n"
+        f"Failed fields: {len(report.failures)}",
+        title="评测摘要",
+    ))
+    for failure in report.failures[:20]:
+        console.print(
+            f"[yellow]{failure.case_id}/{failure.field_name}[/yellow] "
+            f"expected={list(failure.expected)} predicted={list(failure.predicted)}"
+        )
 
 
 def _run_extract(
@@ -218,6 +252,63 @@ def extract_v2(
         input_path, out, config, use_ner, llm, model, pattern,
         verbose, debug, use_modules, include_pii, base_url, api_key, cache_dir,
     )
+
+
+@app.command("eval")
+def evaluate(
+    dataset: str = typer.Argument("./eval/gold.jsonl", help="Gold Dataset（JSONL）路径"),
+    config: str = typer.Option("./config/example.yaml", "--config", "-c", help="配置文件路径"),
+    llm: str = typer.Option("none", "--llm", help="LLM 提供商，例如 siliconflow"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="模型名称"),
+    base_url: Optional[str] = typer.Option(None, "--base-url", help="覆盖 API Base URL"),
+    api_key: Optional[str] = typer.Option(None, "--api-key", help="覆盖 API Key（推荐使用环境变量）"),
+    cache_dir: str = typer.Option(".cache/eval", "--cache-dir", help="评测 LLM 缓存目录"),
+    report_path: Optional[str] = typer.Option(None, "--report", help="保存 JSON 评测报告"),
+    fail_under: float = typer.Option(0.0, "--fail-under", help="Micro F1 低于阈值时返回退出码 2"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="详细日志"),
+    debug: bool = typer.Option(False, "--debug", help="调试模式"),
+):
+    """在 Gold Dataset 上评测真实抽取质量，可选 SiliconFlow LLM。"""
+    if not 0.0 <= fail_under <= 1.0:
+        console.print("[red]错误：--fail-under 必须在 0 到 1 之间[/red]")
+        raise typer.Exit(1)
+
+    _configure_logging(verbose, debug)
+    config_path = resolve_config_path(config)
+    yaml_data = load_yaml(config_path)
+    processing = build_processing_config(
+        yaml_data,
+        llm=llm,
+        model=model,
+        base_url=base_url,
+        api_key=api_key,
+        cache_dir=cache_dir,
+        include_pii=False,
+        debug=debug,
+    )
+    Path(processing.cache_dir).mkdir(parents=True, exist_ok=True)
+
+    try:
+        report = evaluate_dataset(dataset, processing)
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]评测失败：{exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    _print_evaluation_summary(report)
+    if report_path:
+        output = Path(report_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(
+            json.dumps(report.as_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        console.print(f"[green]评测报告已保存: {output}[/green]")
+
+    if report.micro.f1 < fail_under:
+        console.print(
+            f"[red]质量门禁失败：Micro F1 {report.micro.f1:.3f} < {fail_under:.3f}[/red]"
+        )
+        raise typer.Exit(2)
 
 
 @app.command()
