@@ -7,6 +7,7 @@ on:
     paths:
       - "src/**"
       - "scripts/acceptance_corpus.py"
+      - "scripts/fetch_public_examples.py"
       - "examples/**"
       - ".github/workflows/acceptance.yml"
       - "README.md"
@@ -17,7 +18,7 @@ permissions:
 jobs:
   acceptance:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,11 +28,38 @@ jobs:
         run: python -m pip install --upgrade uv
       - name: Install package with PDF support
         run: uv sync --extra dev --extra pdf
-      - name: Run real PDF acceptance
+      - name: Run committed example acceptance
         run: uv run python scripts/acceptance_corpus.py --min-pdfs 1 --report artifacts/acceptance.json
-      - name: Upload acceptance report
+      - name: Download 12 official public tender PDFs and build fixtures
+        run: >-
+          uv run python scripts/fetch_public_examples.py
+          --target-count 12
+          --max-full-mb 3
+          --excerpt-pages 8
+      - name: Run full-original public corpus acceptance
+        run: >-
+          uv run python scripts/acceptance_corpus.py
+          --examples .cache/public-full
+          --min-pdfs 12
+          --no-require-example
+          --report artifacts/public-full-acceptance.json
+      - name: Run compact fixture acceptance
+        run: >-
+          uv run python scripts/acceptance_corpus.py
+          --examples examples
+          --min-pdfs 13
+          --report artifacts/fixture-acceptance.json
+      - name: Upload acceptance reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: real-pdf-acceptance
-          path: artifacts/acceptance.json
+          path: artifacts/*.json
+      - name: Upload vetted public fixtures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-pdf-fixtures
+          path: |
+            examples/public-*.pdf
+            examples/public-corpus.lock.json
