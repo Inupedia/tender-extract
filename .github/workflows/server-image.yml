@@ -11,7 +11,7 @@ on:
       - ".github/workflows/server-image.yml"
   push:
     tags:
-      - "server-v*"
+      - "v*"
   workflow_dispatch:
 
 env:
@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            version="${GITHUB_REF_NAME#server-v}"
+            version="${GITHUB_REF_NAME#v}"
             if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
               echo "Invalid server release tag: ${GITHUB_REF_NAME}" >&2
               exit 1
@@ -98,7 +98,7 @@ jobs:
           PY
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/server-v')
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: test-image
     runs-on: ubuntu-latest
     permissions:

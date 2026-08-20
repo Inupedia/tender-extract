@@ -63,7 +63,7 @@ docker run --rm -p 8000:8000 \
   ghcr.io/inupedia/tender-extract-server:0.1.0
 ```
 
-Images are released only from server version tags. For example, Git tag `server-v0.1.0` publishes image tag `:0.1.0` and updates `:latest`; ordinary pushes to `main` do not publish a server image.
+Images are released only from version tags. For example, Git tag `v0.1.0` publishes image tag `:0.1.0` and updates `:latest`; ordinary pushes to `main` do not publish a server image.
 
 ## Local CLI
 
