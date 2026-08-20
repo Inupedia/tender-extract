@@ -1,0 +1,26 @@
+{
+  "example.pdf": {
+    "project_name": "合肥市公安局瑶海分局雪亮工程支网运维服务采购项目",
+    "project_number": "2024BFFFZ01583",
+    "tenderer": "合肥市公安局瑶海分局"
+  },
+  "public-01-beijing-landscape-lighting-2024.pdf": {
+    "project_name": "2024 年-2026 年市属景观照明设施维护项目",
+    "project_number": "TAHP-ZB-2023-1790",
+    "tenderer": "北京市城市管理委员会"
+  },
+  "public-04-shanghai-single-source-2026.pdf": {
+    "tenderer": "上海大学",
+    "bid_date": "2026-01-0514:00:00"
+  },
+  "public-10-shanghai-exam-equipment-2026.pdf": {
+    "project_name": "2026 年长宁区标准化考点设备更新、增补公开招标项目",
+    "tenderer": "上海市长宁区教育局",
+    "bid_date": "2026年4月29日10:00"
+  },
+  "public-11-shanghai-population-service-2026.pdf": {
+    "project_name": "人口管理特保（2026）",
+    "tenderer": "上海市奉贤区人口综合管理服务中心",
+    "bid_date": "2026-06-1810:00:00"
+  }
+}
