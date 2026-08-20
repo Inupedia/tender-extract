@@ -117,7 +117,17 @@ class EvidenceLocator:
 
 
 def _recover_offsets(span: EvidenceSpan, content: str) -> tuple[int, int]:
+    # Regex spans historically covered the whole match (label + value). When the
+    # cleaned extracted value occurs inside that window, narrow provenance to the
+    # actual value so highlighting does not swallow neighboring fields.
     if 0 <= span.start < span.end <= len(content):
+        window = content[span.start:span.end]
+        for candidate in (span.value, span.normalized_value):
+            value = (candidate or "").strip()
+            local = window.find(value) if value else -1
+            if local != -1:
+                start = span.start + local
+                return start, start + len(value)
         return span.start, span.end
 
     for candidate in (span.value, span.normalized_value):
