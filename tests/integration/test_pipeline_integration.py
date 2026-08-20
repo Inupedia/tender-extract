@@ -26,6 +26,8 @@ def test_pipeline_rule_path_returns_structured_auditable_result(tmp_path: Path):
     pipeline = ExtractionPipeline(
         ProcessingConfig(llm_provider="none", use_ocr=False, persist_llm_cache=False)
     )
+    direct = pipeline.engine.extract_all_fields(path.read_text(encoding="utf-8"))
+    assert "deposit" in direct, f"engine fields: {sorted(direct)}"
     result = pipeline.extract_file(str(path))
 
     assert result.metadata.extraction_stats["original_format"] == "md"
