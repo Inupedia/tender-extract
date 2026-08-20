@@ -68,7 +68,7 @@ docker run --rm -p 8000:8000 \
   ghcr.io/inupedia/tender-extract-server:0.1.0
 ```
 
-镜像只在创建服务版本标签时发布：例如 Git tag `server-v0.1.0` 会发布 `:0.1.0`，并同步更新 `:latest`。普通提交到 `main` 不会发布镜像。
+镜像只在创建版本标签时发布：例如 Git tag `v0.1.0` 会发布 `:0.1.0`，并同步更新 `:latest`。普通提交到 `main` 不会发布镜像。
 
 ## 本地命令行
 
