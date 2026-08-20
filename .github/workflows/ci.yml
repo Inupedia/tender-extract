@@ -29,7 +29,7 @@ jobs:
       - name: Run unit tests with coverage data
         env:
           COVERAGE_FILE: .coverage.unit
-        run: uv run coverage run --parallel-mode -m pytest -q tests/unit -m unit
+        run: .venv/bin/python -m coverage run --parallel-mode -m pytest -q tests/unit -m unit
       - name: Upload unit coverage data
         uses: actions/upload-artifact@v4
         with:
@@ -53,7 +53,7 @@ jobs:
       - name: Run integration tests with coverage data
         env:
           COVERAGE_FILE: .coverage.integration
-        run: uv run coverage run --parallel-mode -m pytest -q tests/integration -m integration
+        run: .venv/bin/python -m coverage run --parallel-mode -m pytest -q tests/integration -m integration
       - name: Upload integration coverage data
         uses: actions/upload-artifact@v4
         with:
@@ -77,7 +77,7 @@ jobs:
       - name: Run CLI E2E tests with coverage data
         env:
           COVERAGE_FILE: .coverage.e2e
-        run: uv run coverage run --parallel-mode -m pytest -q tests/e2e -m e2e
+        run: .venv/bin/python -m coverage run --parallel-mode -m pytest -q tests/e2e -m e2e
       - name: Upload E2E coverage data
         uses: actions/upload-artifact@v4
         with:
@@ -99,12 +99,12 @@ jobs:
       - name: Sync regression dependencies
         run: uv sync --extra dev
       - name: Compile package
-        run: uv run python -m compileall -q src
+        run: .venv/bin/python -m compileall -q src
       - name: Run existing regression tests with coverage data
         env:
           COVERAGE_FILE: .coverage.regression
         run: >-
-          uv run coverage run --parallel-mode -m pytest -q
+          .venv/bin/python -m coverage run --parallel-mode -m pytest -q
           tests/test_pipeline.py
           tests/test_module_router.py
           tests/test_hardening.py
@@ -138,9 +138,9 @@ jobs:
       - name: Combine coverage and enforce floor
         run: |
           cp .coverage-data/.coverage.* .
-          uv run coverage combine
-          uv run coverage report --fail-under=65
-          uv run coverage xml
+          .venv/bin/python -m coverage combine
+          .venv/bin/python -m coverage report --fail-under=65
+          .venv/bin/python -m coverage xml
       - name: Upload coverage XML
         uses: actions/upload-artifact@v4
         with:
