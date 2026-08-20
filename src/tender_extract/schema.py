@@ -6,6 +6,32 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class BoundingBox(BaseModel):
+    """PDF 页面坐标，单位为 PDF points，原点位于页面左上角。"""
+
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    page_width: float
+    page_height: float
+    coordinate_system: str = "pdf_points_top_left"
+
+
+class EvidenceLocation(BaseModel):
+    """证据在源文档中的结构化定位；无法可靠确定的维度保持为空。"""
+
+    document_id: str
+    page: Optional[int] = Field(None, ge=1, description="PDF 物理页码，1-based")
+    section_path: list[str] = Field(default_factory=list)
+    line_start: Optional[int] = Field(None, ge=1)
+    line_end: Optional[int] = Field(None, ge=1)
+    bbox: Optional[BoundingBox] = None
+    source_text: Optional[str] = None
+    source_start: int = Field(-1, description="统一 Markdown 中的起始字符位置")
+    source_end: int = Field(-1, description="统一 Markdown 中的结束字符位置")
+
+
 class EvidenceSpan(BaseModel):
     """证据片段，包含字段值和原文定位。"""
 
@@ -20,6 +46,7 @@ class EvidenceSpan(BaseModel):
     ref: Optional[str] = Field(None, description="对应的原文片段")
     unit: Optional[str] = Field(None, description="金额等单位，如 元/万元")
     normalized_value: Optional[str] = Field(None, description="规范化值，金额为人民币元")
+    location: Optional[EvidenceLocation] = Field(None, description="源文档结构化定位")
 
 
 class ExtractedField(BaseModel):
