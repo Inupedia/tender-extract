@@ -38,6 +38,7 @@ def build_processing_config(
     chunking = yaml_data.get("chunking") or {}
     llm_cfg = yaml_data.get("llm") or {}
     cache_cfg = yaml_data.get("cache") or {}
+    patterns = yaml_data.get("patterns") or {}
 
     provider = llm if llm is not None else llm_cfg.get("provider", "none")
     if provider in (None, "", False):
@@ -54,12 +55,15 @@ def build_processing_config(
         overlap_tokens=int(chunking.get("overlap_size", chunking.get("overlap_tokens", 100))),
         cache_dir=cache_dir or cache_cfg.get("cache_dir", ".cache"),
         enable_dedupe=bool(base.get("use_dedupe", False)),
-        enable_similarity_check=False,
-        use_modules=use_modules if use_modules is not None else True,
-        include_pii=include_pii if include_pii is not None else False,
+        enable_similarity_check=bool(base.get("use_similarity_check", False)),
+        use_modules=use_modules if use_modules is not None else bool(base.get("use_modules", True)),
+        include_pii=include_pii if include_pii is not None else bool(base.get("include_pii", False)),
         use_ocr=bool(base.get("use_ocr", True)),
         debug=debug,
         persist_llm_cache=bool(cache_cfg.get("enabled", True)),
+        custom_patterns=patterns if isinstance(patterns, dict) else {},
+        recover_missing_fields_with_llm=bool(llm_cfg.get("recover_missing_fields", True)),
+        redact_pii_for_cloud_llm=bool(llm_cfg.get("redact_pii_for_cloud", True)),
     )
 
 

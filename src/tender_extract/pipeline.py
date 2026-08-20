@@ -6,11 +6,13 @@ import time
 from pathlib import Path
 
 from .chunker import ChunkingConfig, DocumentChunker
+from .configurable_engine import ConfigurableExtractionEngine
+from .dedupe import DeduplicationEngine
 from .document_parser import DocumentParser
-from .extraction_engine import ExtractionEngine
+from .field_registry import get_expected_fields_for_modules
 from .llm_router import LLMRouter
 from .merge import FieldMerger
-from .module_router import ModuleRouter
+from .module_router import ModuleRouter, RoutedChunk
 from .ner import NERExtractor
 from .personnel_extractor import PersonnelExtractor
 from .pii import mask_result
@@ -42,7 +44,7 @@ class ExtractionPipeline:
             )
         )
         self.router = ModuleRouter()
-        self.engine = ExtractionEngine()
+        self.engine = ConfigurableExtractionEngine(config.custom_patterns)
         self.personnel_extractor = PersonnelExtractor()
         self.merger = FieldMerger()
         self.llm = LLMRouter(config)
@@ -57,28 +59,27 @@ class ExtractionPipeline:
         parsed = self.parser.parse(str(path))
         content = parsed.content
         chunks = self.chunker.chunk_document(content, parsed.filename)
+        chunks, deduped_count = self._dedupe_chunks(chunks)
 
-        routed = []
+        routed: list[RoutedChunk] = []
         routing_summary = {"module_distribution": {}}
         if self.config.use_modules:
             routed = self.router.route_chunks(chunks)
             routing_summary = self.router.get_routing_summary(routed)
 
-        # 1) 全文抽取，避免切块切断「项目名称：」这类标注
+        # 全文规则抽取保证关键标注不因切块边界丢失；YAML 规则已叠加到 active engine。
         fields = self.engine.extract_all_fields(content)
 
-        # 2) 按模块对切片补抽目标字段，路由结果真正参与抽取
-        if routed:
-            for item in routed:
-                targets = self.router.get_module_target_fields(item.module_id)
-                known = [name for name in targets if name in self.engine._compiled_patterns]
-                chunk_fields = self.engine.extract_all_fields(
-                    item.chunk.content,
-                    target_fields=known or None,
-                )
-                offset = _chunk_offset(content, item.chunk)
-                _lift_offsets(chunk_fields, offset, content)
-                fields = _merge_field_maps(fields, chunk_fields)
+        # 模块补抽只执行该模块真实存在的规则；不能用 None 回退为“全规则”。
+        for item in routed:
+            targets = self.router.get_module_target_fields(item.module_id)
+            known = [name for name in targets if name in self.engine._compiled_patterns]
+            if not known:
+                continue
+            chunk_fields = self.engine.extract_all_fields(item.chunk.content, target_fields=known)
+            offset = _chunk_offset(content, item.chunk)
+            _lift_offsets(chunk_fields, offset, content)
+            fields = _merge_field_maps(fields, chunk_fields)
 
         if self.ner:
             ner_fields = self.ner.extract_entities(content, content)
@@ -87,16 +88,14 @@ class ExtractionPipeline:
         personnel = self.personnel_extractor.extract_personnel(content)
         certificates = self.personnel_extractor.extract_certificates(content)
 
-        low_conf = self.engine.get_low_confidence_fields(
-            fields, self.config.confidence_threshold
-        )
+        low_conf = self.engine.get_low_confidence_fields(fields, self.config.confidence_threshold)
         llm_calls = 0
-        if self.llm.is_enabled() and low_conf:
-            for name in low_conf:
+
+        # 已命中但低置信/冲突：LLM 复核。
+        if self.llm.is_enabled():
+            for name in list(low_conf):
                 field = fields.get(name)
-                if field is None or not self.llm.should_use_llm(
-                    field, self.config.confidence_threshold
-                ):
+                if field is None or not self.llm.should_use_llm(field, self.config.confidence_threshold):
                     continue
                 context = self.llm.get_minimal_evidence_context(field, content)
                 response = self.llm.extract_with_llm(
@@ -108,10 +107,33 @@ class ExtractionPipeline:
                     )
                 )
                 if response:
-                    fields[name] = self.llm.merge_llm_results(field, response)
+                    fields[name] = self.llm.merge_llm_results(field, response, context)
                     llm_calls += 1
                 else:
                     warnings.append(f"LLM 未返回字段 {name}")
+
+        # 规则完全未命中的字段：由 Router/Field Registry 给出明确 extraction plan，再让 LLM 恢复。
+        module_ids = {item.module_id for item in routed if item.module_id != "general"}
+        expected_fields = get_expected_fields_for_modules(module_ids)
+        missing_fields = sorted(expected_fields.difference(fields))
+        if self.llm.is_enabled() and self.config.recover_missing_fields_with_llm:
+            for name in missing_fields:
+                if not self.llm.should_recover_missing(name):
+                    continue
+                context = _missing_field_context(routed, self.router, name, content)
+                response = self.llm.extract_with_llm(
+                    LLMRequest(
+                        chunk_text=context,
+                        field_name=name,
+                        field_type=name,
+                        existing_values=[],
+                    )
+                )
+                if not response or not response.extracted_values:
+                    continue
+                placeholder = ExtractedField(field_name=name, field_type=name)
+                fields[name] = self.llm.merge_llm_results(placeholder, response, context)
+                llm_calls += 1
 
         fields = self.merger.resolve_conflicts(fields)
         fields = self.engine._post_process(fields)
@@ -152,7 +174,9 @@ class ExtractionPipeline:
                 sum(f.confidence for f in fields.values()) / len(fields) if fields else 0.0
             ),
             "low_confidence_count": len(low_conf),
+            "missing_fields_considered": len(missing_fields),
             "modules_used": list(routing_summary.get("module_distribution", {}).keys()),
+            "deduped_chunks": deduped_count,
             "personnel_count": len(personnel_records),
             "certificates_count": len(certificate_records),
             "original_format": parsed.original_format,
@@ -183,16 +207,43 @@ class ExtractionPipeline:
             self.llm.save_cache()
         return result
 
+    def _dedupe_chunks(self, chunks: list[ChunkInfo]) -> tuple[list[ChunkInfo], int]:
+        if not self.config.enable_dedupe or len(chunks) < 2:
+            return chunks, 0
+        engine = DeduplicationEngine(enable_lsh=self.config.enable_similarity_check)
+        results = engine.process_chunks(chunks)
+        kept = [chunk for chunk, result in zip(chunks, results) if not result.is_duplicate]
+        return kept, len(chunks) - len(kept)
+
+
+def _missing_field_context(
+    routed: list[RoutedChunk], router: ModuleRouter, field_name: str, full_content: str
+) -> str:
+    pieces: list[str] = []
+    seen: set[str] = set()
+    for item in routed:
+        if field_name not in router.get_module_target_fields(item.module_id):
+            continue
+        text = item.chunk.content.strip()
+        if text and text not in seen:
+            pieces.append(text)
+            seen.add(text)
+        if sum(len(piece) for piece in pieces) >= 2400:
+            break
+    return "\n---\n".join(pieces)[:2400] or full_content[:1200]
+
 
 def _chunk_offset(full_content: str, chunk: ChunkInfo) -> int:
-    pos = full_content.find(chunk.content)
+    # 优先使用 chunker 给出的行位置作为搜索锚点，降低重复模板总是命中第一次出现的概率。
+    lines = full_content.split("\n")
+    anchor = 0
+    if chunk.start_line > 1 and chunk.start_line <= len(lines):
+        anchor = sum(len(line) + 1 for line in lines[: chunk.start_line - 1])
+    pos = full_content.find(chunk.content, anchor)
     if pos != -1:
         return pos
-    if chunk.start_line > 1:
-        lines = full_content.split("\n")
-        if chunk.start_line <= len(lines):
-            return sum(len(line) + 1 for line in lines[: chunk.start_line - 1])
-    return 0
+    pos = full_content.find(chunk.content)
+    return pos if pos != -1 else anchor
 
 
 def _lift_offsets(fields: dict[str, ExtractedField], offset: int, full_content: str) -> None:
@@ -200,6 +251,8 @@ def _lift_offsets(fields: dict[str, ExtractedField], offset: int, full_content: 
         return
     for field in fields.values():
         for span in field.values:
+            if span.start < 0 or span.end < 0:
+                continue
             span.start += offset
             span.end += offset
             if span.end <= len(full_content):
@@ -217,9 +270,12 @@ def _merge_field_maps(
             merged[name] = field
             continue
         existing = merged[name]
-        existing.values.extend(field.values)
-        existing.values.sort(key=lambda x: x.confidence, reverse=True)
-        existing.primary_value = existing.values[0].value
-        existing.confidence = existing.values[0].confidence
-        existing.conflicts = list({*existing.conflicts, *field.conflicts})
+        by_key = {(v.value, v.start, v.end, v.source): v for v in existing.values}
+        for value in field.values:
+            by_key.setdefault((value.value, value.start, value.end, value.source), value)
+        existing.values = sorted(by_key.values(), key=lambda x: x.confidence, reverse=True)
+        if existing.values:
+            existing.primary_value = existing.values[0].value
+            existing.confidence = existing.values[0].confidence
+        existing.conflicts = list(dict.fromkeys([*existing.conflicts, *field.conflicts]))
     return merged

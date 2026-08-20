@@ -9,6 +9,8 @@ from .schema import CertificateRecord, ExtractionResult, PersonnelRecord
 _ID_CARD = re.compile(
     r"[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]"
 )
+_MOBILE = re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)")
+_EMAIL = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
 
 
 def mask_id_card(value: str) -> str:
@@ -19,6 +21,14 @@ def mask_id_card(value: str) -> str:
 
 def mask_text(value: str) -> str:
     return _ID_CARD.sub(lambda m: mask_id_card(m.group(0)), value)
+
+
+def redact_for_cloud_llm(value: str) -> str:
+    """云端 LLM 出站前最小化敏感信息；本地模型可跳过此步骤。"""
+    value = mask_text(value)
+    value = _MOBILE.sub(lambda m: m.group(0)[:3] + "****" + m.group(0)[-4:], value)
+    value = _EMAIL.sub("[REDACTED_EMAIL]", value)
+    return value
 
 
 def mask_result(result: ExtractionResult) -> ExtractionResult:
