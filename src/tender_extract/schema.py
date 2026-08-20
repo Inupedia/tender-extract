@@ -12,21 +12,17 @@ class EvidenceSpan(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     value: str = Field(..., description="提取的字段值")
-    start: int = Field(..., description="在当前文本中的起始位置")
-    end: int = Field(..., description="在当前文本中的结束位置")
+    start: int = Field(..., description="在当前文本中的起始位置；无法可靠定位时为 -1")
+    end: int = Field(..., description="在当前文本中的结束位置；无法可靠定位时为 -1")
     confidence: float = Field(..., description="置信度", ge=0.0, le=1.0)
     source: str = Field(..., description="来源：regex/ner/llm")
     pattern: Optional[str] = Field(None, description="匹配的模式说明")
     ref: Optional[str] = Field(None, description="对应的原文片段")
     unit: Optional[str] = Field(None, description="金额等单位，如 元/万元")
-    normalized_value: Optional[str] = Field(
-        None, description="规范化值，金额为人民币元"
-    )
+    normalized_value: Optional[str] = Field(None, description="规范化值，金额为人民币元")
 
 
 class ExtractedField(BaseModel):
-    """提取的字段。"""
-
     model_config = ConfigDict(extra="ignore")
 
     field_name: str
@@ -71,8 +67,6 @@ class DocumentMetadata(BaseModel):
 
 
 class ExtractionResult(BaseModel):
-    """单文档抽取结果。人员/证书绑定在本对象上，避免跨文件串数据。"""
-
     model_config = ConfigDict(extra="ignore")
 
     metadata: DocumentMetadata
@@ -133,3 +127,6 @@ class ProcessingConfig(BaseModel):
     use_ocr: bool = True
     debug: bool = False
     persist_llm_cache: bool = True
+    custom_patterns: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
+    recover_missing_fields_with_llm: bool = True
+    redact_pii_for_cloud_llm: bool = True
