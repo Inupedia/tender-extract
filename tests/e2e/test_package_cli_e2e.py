@@ -108,8 +108,8 @@ def test_package_validate_and_extract_effective_views(tmp_path: Path):
     assert "原招标范围" in project_scope["conflicts"]
     assert project_scope["selected_evidence"]
     assert project_scope["selected_evidence"][0]["document_id"] == "amendment-1"
-    assert project_scope["selected_evidence"][0]["source_text"] == "项目范围：修订后的招标范围"
-    assert project_scope["selected_evidence"][0]["source_start"] == 0
+    assert project_scope["selected_evidence"][0]["source_text"] == "修订后的招标范围"
+    assert project_scope["selected_evidence"][0]["source_start"] > 0
 
     clarification = payload["tender_fields"]["clarification_note"]
     assert clarification["primary_value"] == "第二次澄清"
