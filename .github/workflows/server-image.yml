@@ -1,0 +1,153 @@
+name: Server Image
+
+on:
+  pull_request:
+    paths:
+      - "src/tender_extract/server.py"
+      - "server/**"
+      - "server_tests/**"
+      - "Dockerfile.server"
+      - "requirements-server.txt"
+      - ".github/workflows/server-image.yml"
+      - "README.md"
+      - "README_EN.md"
+  push:
+    branches: [main]
+    paths:
+      - "src/tender_extract/server.py"
+      - "server/**"
+      - "server_tests/**"
+      - "Dockerfile.server"
+      - "requirements-server.txt"
+      - ".github/workflows/server-image.yml"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/tender-extract-server
+
+jobs:
+  test-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade uv
+          uv sync --extra dev --extra pdf --extra docx
+          uv pip install -r requirements-server.txt
+
+      - name: Run server API tests
+        env:
+          TENDER_SERVER_USE_OCR: "false"
+        run: uv run pytest -q server_tests
+
+      - name: Read server version
+        id: version
+        run: echo "version=$(tr -d '[:space:]' < server/VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Build server container
+        run: >-
+          docker build
+          --file Dockerfile.server
+          --build-arg SERVER_VERSION=${{ steps.version.outputs.version }}
+          --tag tender-extract-server:test
+          .
+
+      - name: Smoke test container with real PDF
+        run: |
+          docker run --rm -d --name tender-extract-server-test -p 8000:8000 tender-extract-server:test
+          trap 'docker rm -f tender-extract-server-test >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8000/healthz >/tmp/health.json; then
+              break
+            fi
+            sleep 1
+          done
+          cat /tmp/health.json
+          curl --fail --silent \
+            -F "file=@examples/example.pdf;type=application/pdf" \
+            "http://127.0.0.1:8000/v1/extract?llm_provider=none&use_ocr=false" \
+            > /tmp/extract.json
+          python - <<'PY'
+          import json
+          payload = json.load(open('/tmp/extract.json', encoding='utf-8'))
+          result = payload['result']
+          assert result['metadata']['total_pages'] == 10
+          assert result['fields']['project_number']['primary_value'] == '2024BFFFZ01583'
+          assert result['fields']['tenderer']['primary_value'] == '合肥市公安局瑶海分局'
+          print('container smoke test passed')
+          PY
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Read server version
+        id: version
+        run: echo "version=$(tr -d '[:space:]' < server/VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
+            type=sha,prefix=sha-
+          labels: |
+            org.opencontainers.image.title=tender-extract-server
+            org.opencontainers.image.description=HTTP service for tender-extract
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
+      - name: Build and push image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.server
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            SERVER_VERSION=${{ steps.version.outputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Attest image provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
