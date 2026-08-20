@@ -31,3 +31,15 @@ jobs:
         run: uv sync --extra dev
       - name: Run SiliconFlow live test
         run: uv run pytest -q tests/live -m live
+      - name: Run SiliconFlow gold evaluation
+        run: >-
+          uv run tender-extract eval eval/gold-siliconflow.jsonl
+          --llm siliconflow
+          --model "$SILICONFLOW_MODEL"
+          --fail-under 1.0
+          --report artifacts/siliconflow-eval.json
+      - name: Upload SiliconFlow evaluation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: siliconflow-evaluation
+          path: artifacts/siliconflow-eval.json
