@@ -70,6 +70,7 @@ markers = [
 
 [tool.coverage.run]
 branch = true
+relative_files = true
 source = ["tender_extract"]
 
 [tool.coverage.report]
