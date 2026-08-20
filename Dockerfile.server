@@ -13,11 +13,11 @@ WORKDIR /app
 
 RUN groupadd --system app && useradd --system --gid app --create-home app
 
-COPY pyproject.toml README.md requirements-server.txt ./
+COPY pyproject.toml README.md ./
 COPY src ./src
 
 RUN python -m pip install --upgrade pip \
-    && python -m pip install -r requirements-server.txt "." "pymupdf>=1.23.0" "python-docx>=1.0.0" \
+    && python -m pip install ".[server,pdf,docx]" \
     && mkdir -p /data/cache \
     && chown -R app:app /app /data
 
