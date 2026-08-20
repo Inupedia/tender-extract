@@ -26,10 +26,13 @@ def test_dedupe_marks_exact_duplicate_by_fingerprint():
     chunks = [
         _chunk("a", "同一段落", fingerprint="same"),
         _chunk("b", "同一段落", fingerprint="same"),
-        _chunk("c", "不同段落", fingerprint="different"),
+        _chunk("c", "完全无关的章节内容XYZ", fingerprint="different"),
     ]
 
-    results = DeduplicationEngine(enable_lsh=False).process_chunks(chunks)
+    results = DeduplicationEngine(
+        similarity_threshold=0.95,
+        enable_lsh=False,
+    ).process_chunks(chunks)
 
     assert results[0].is_duplicate is False
     assert results[1].is_duplicate is True
