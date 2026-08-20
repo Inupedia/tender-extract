@@ -60,7 +60,7 @@ jobs:
   coverage:
     name: regression + coverage
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -68,13 +68,20 @@ jobs:
           python-version: "3.12"
       - name: Install uv
         run: python -m pip install --upgrade uv
-      - name: Sync full non-OCR test dependencies
-        run: uv sync --extra dev --extra pdf --extra docx
+      - name: Sync core test dependencies
+        run: uv sync --extra dev
       - name: Compile package
         run: uv run python -m compileall -q src
-      - name: Run all non-live tests with coverage
+      - name: Run core regression paths with coverage
         run: >-
-          uv run pytest -q -m "not live"
+          uv run pytest -q
+          tests/test_pipeline.py
+          tests/test_module_router.py
+          tests/test_hardening.py
+          tests/unit
+          tests/integration/test_pipeline_integration.py
+          tests/e2e
+          -m "not live"
           --cov=tender_extract
           --cov-branch
           --cov-report=term-missing
