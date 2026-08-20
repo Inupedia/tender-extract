@@ -48,12 +48,15 @@ jobs:
           python-version: "3.12"
       - name: Install uv
         run: python -m pip install --upgrade uv
-      - name: Sync document integration dependencies
-        run: uv sync --extra dev --extra pdf --extra docx
-      - name: Run integration tests with coverage data
+      - name: Sync integration and server dependencies
+        run: uv sync --extra dev --extra pdf --extra docx --extra server
+      - name: Run integration and server tests with coverage data
         env:
           COVERAGE_FILE: .coverage.integration
-        run: .venv/bin/python -m coverage run --parallel-mode -m pytest -q tests/integration -m integration
+          TENDER_SERVER_USE_OCR: "false"
+        run: |
+          .venv/bin/python -m coverage run --parallel-mode -m pytest -q tests/integration -m integration
+          .venv/bin/python -m coverage run --parallel-mode -m pytest -q server_tests
       - name: Upload integration coverage data
         uses: actions/upload-artifact@v4
         with:

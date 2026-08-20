@@ -3,23 +3,15 @@ name: Server Image
 on:
   pull_request:
     paths:
-      - "src/tender_extract/server.py"
-      - "server/**"
+      - "src/tender_extract/**"
       - "server_tests/**"
+      - "examples/example.pdf"
       - "Dockerfile.server"
-      - "requirements-server.txt"
+      - "pyproject.toml"
       - ".github/workflows/server-image.yml"
-      - "README.md"
-      - "README_EN.md"
   push:
-    branches: [main]
-    paths:
-      - "src/tender_extract/server.py"
-      - "server/**"
-      - "server_tests/**"
-      - "Dockerfile.server"
-      - "requirements-server.txt"
-      - ".github/workflows/server-image.yml"
+    tags:
+      - "server-v*"
   workflow_dispatch:
 
 env:
@@ -31,27 +23,25 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Install test dependencies
-        run: |
-          python -m pip install --upgrade uv
-          uv sync --extra dev --extra pdf --extra docx
-          uv pip install -r requirements-server.txt
-
-      - name: Run server API tests
-        env:
-          TENDER_SERVER_USE_OCR: "false"
-        run: uv run pytest -q server_tests
-
-      - name: Read server version
+      - name: Resolve server version
         id: version
-        run: echo "version=$(tr -d '[:space:]' < server/VERSION)" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#server-v}"
+            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "Invalid server release tag: ${GITHUB_REF_NAME}" >&2
+              exit 1
+            fi
+          else
+            version="dev"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Build server container
         run: >-
@@ -63,23 +53,44 @@ jobs:
 
       - name: Smoke test container with real PDF
         run: |
-          docker run --rm -d --name tender-extract-server-test -p 8000:8000 tender-extract-server:test
+          docker run --rm -d \
+            --name tender-extract-server-test \
+            -p 8000:8000 \
+            -e TENDER_SERVER_API_KEY=ci-test-key \
+            tender-extract-server:test
           trap 'docker rm -f tender-extract-server-test >/dev/null 2>&1 || true' EXIT
+
           for i in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:8000/healthz >/tmp/health.json; then
               break
             fi
             sleep 1
           done
-          cat /tmp/health.json
+          curl --fail --silent http://127.0.0.1:8000/healthz >/tmp/health.json
+          curl --fail --silent http://127.0.0.1:8000/v1/info >/tmp/info.json
+
+          status=$(curl --silent --output /tmp/unauthorized.json --write-out '%{http_code}' \
+            -F "file=@examples/example.pdf;type=application/pdf" \
+            "http://127.0.0.1:8000/v1/extract?llm_provider=none&use_ocr=false")
+          test "$status" = "401"
+
           curl --fail --silent \
+            -H "X-API-Key: ci-test-key" \
             -F "file=@examples/example.pdf;type=application/pdf" \
             "http://127.0.0.1:8000/v1/extract?llm_provider=none&use_ocr=false" \
             > /tmp/extract.json
-          python - <<'PY'
+
+          python - "${{ steps.version.outputs.version }}" <<'PY'
           import json
+          import sys
+
+          expected_version = sys.argv[1]
+          info = json.load(open('/tmp/info.json', encoding='utf-8'))
           payload = json.load(open('/tmp/extract.json', encoding='utf-8'))
           result = payload['result']
+
+          assert info['version'] == expected_version
+          assert payload['server_version'] == expected_version
           assert result['metadata']['total_pages'] == 10
           assert result['fields']['project_number']['primary_value'] == '2024BFFFZ01583'
           assert result['fields']['tenderer']['primary_value'] == '合肥市公安局瑶海分局'
@@ -87,20 +98,14 @@ jobs:
           PY
 
   publish:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: startsWith(github.ref, 'refs/tags/server-v')
     needs: test-image
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-      attestations: write
-      id-token: write
     steps:
       - uses: actions/checkout@v6
-
-      - name: Read server version
-        id: version
-        run: echo "version=$(tr -d '[:space:]' < server/VERSION)" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -115,23 +120,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ steps.version.outputs.version }}
-            type=raw,value=latest
-            type=sha,prefix=sha-
-          labels: |
-            org.opencontainers.image.title=tender-extract-server
-            org.opencontainers.image.description=HTTP service for tender-extract
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
-
-      - name: Build and push image
-        id: push
+      - name: Build and publish release image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -139,15 +128,9 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           build-args: |
-            SERVER_VERSION=${{ steps.version.outputs.version }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          provenance: mode=max
+            SERVER_VERSION=${{ needs.test-image.outputs.version }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.test-image.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          provenance: true
           sbom: true
-
-      - name: Attest image provenance
-        uses: actions/attest-build-provenance@v3
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true

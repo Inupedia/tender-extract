@@ -38,6 +38,11 @@ pdf = [
 docx = [
     "python-docx>=1.0.0",
 ]
+server = [
+    "fastapi>=0.116,<1",
+    "uvicorn[standard]>=0.35,<1",
+    "python-multipart>=0.0.20,<1",
+]
 ocr = [
     "paddlepaddle>=3.0.0",
     "paddleocr>=3.0.0",
@@ -45,6 +50,9 @@ ocr = [
 all = [
     "pymupdf>=1.23.0",
     "python-docx>=1.0.0",
+    "fastapi>=0.116,<1",
+    "uvicorn[standard]>=0.35,<1",
+    "python-multipart>=0.0.20,<1",
     "paddlepaddle>=3.0.0",
     "paddleocr>=3.0.0",
     "pytest>=8.0.0",

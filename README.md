@@ -68,7 +68,7 @@ docker run --rm -p 8000:8000 \
   ghcr.io/inupedia/tender-extract-server:0.1.0
 ```
 
-镜像由 GitHub Actions 构建并发布到 GitHub Container Registry，同时提供版本号、`latest` 和提交 SHA 标签。
+镜像只在创建服务版本标签时发布：例如 Git tag `server-v0.1.0` 会发布 `:0.1.0`，并同步更新 `:latest`。普通提交到 `main` 不会发布镜像。
 
 ## 本地命令行
 
