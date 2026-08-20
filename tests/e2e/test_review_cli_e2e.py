@@ -62,7 +62,8 @@ def test_review_run_resolve_and_export_gold(tmp_path: Path):
         app, ["list", "--queue", str(queue_path), "--status", "pending"]
     )
     assert list_result.exit_code == 0, list_result.stdout
-    assert items[0].id in list_result.stdout
+    assert "project_scope" in list_result.stdout
+    assert "共 1 项" in list_result.stdout
 
     resolve_result = runner.invoke(
         app,
