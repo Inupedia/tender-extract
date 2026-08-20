@@ -18,7 +18,7 @@ def test_pipeline_rule_path_returns_structured_auditable_result(tmp_path: Path):
         "招标人：测试水务有限公司\n"
         "投标人：测试工程集团有限公司\n"
         "投标报价：100万元\n"
-        "投标保证金：5万元\n"
+        "投标保证金：50万元\n"
         "投标截止时间：2026年9月30日\n",
         encoding="utf-8",
     )
@@ -33,7 +33,7 @@ def test_pipeline_rule_path_returns_structured_auditable_result(tmp_path: Path):
     assert result.metadata.extraction_stats["original_format"] == "md"
     assert result.fields["project_number"].primary_value == "TEST-2026-001"
     assert float(result.fields["bid_amount"].values[0].normalized_value) == 1_000_000
-    assert float(result.fields["deposit"].values[0].normalized_value) == 50_000
+    assert float(result.fields["deposit"].values[0].normalized_value) == 500_000
     assert result.llm_calls == 0
     assert result.chunks_processed >= 1
     assert any(span.ref for span in result.fields["bid_amount"].values)
