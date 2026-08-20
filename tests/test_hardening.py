@@ -22,7 +22,7 @@ def test_yaml_patterns_are_applied_to_active_engine():
             "patterns": {
                 "custom_reference": [
                     {
-                        "pattern": r"内部编号[：:]\\s*([A-Z]{2}-\\d{3})",
+                        "pattern": r"内部编号[：:]\s*([A-Z]{2}-\d{3})",
                         "confidence": 0.99,
                     }
                 ]
