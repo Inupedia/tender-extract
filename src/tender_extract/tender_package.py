@@ -10,7 +10,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .pipeline import ExtractionPipeline
-from .schema import ExtractionResult, ProcessingConfig
+from .schema import EvidenceLocation, ExtractionResult, ProcessingConfig
 
 DocumentRole = Literal[
     "tender", "amendment", "clarification", "bid", "attachment", "other"
@@ -70,6 +70,7 @@ class PackageFieldSource(BaseModel):
     primary_value: Optional[str] = None
     values: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    evidence: list[EvidenceLocation] = Field(default_factory=list)
 
 
 class EffectivePackageField(BaseModel):
@@ -78,6 +79,7 @@ class EffectivePackageField(BaseModel):
     values: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     selected_from_document: str
+    selected_evidence: list[EvidenceLocation] = Field(default_factory=list)
     conflicts: list[str] = Field(default_factory=list)
     sources: list[PackageFieldSource] = Field(default_factory=list)
 
@@ -254,7 +256,7 @@ def extract_package(
 
     for document in manifest.documents:
         resolution = resolutions[document.id]
-        extraction = pipeline.extract_file(document.path)
+        extraction = pipeline.extract_file(document.path, document_id=document.id)
         documents[document.id] = PackageDocumentResult(
             document=document,
             active=resolution.active,
@@ -287,6 +289,7 @@ def extract_package(
                 [span.normalized_value or span.value for span in field.values]
                 + ([field.primary_value] if field.primary_value else [])
             )
+            evidence = [span.location for span in field.values if span.location is not None]
             target[field_name].append(
                 PackageFieldSource(
                     document_id=document.id,
@@ -296,6 +299,7 @@ def extract_package(
                     primary_value=field.primary_value,
                     values=values,
                     confidence=field.confidence,
+                    evidence=evidence,
                 )
             )
 
@@ -349,6 +353,7 @@ def _resolve_effective_field(
         values=all_values,
         confidence=selected.confidence,
         selected_from_document=selected.document_id,
+        selected_evidence=list(selected.evidence),
         conflicts=conflicts,
         sources=ranked,
     )
