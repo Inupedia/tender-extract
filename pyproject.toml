@@ -54,6 +54,7 @@ all = [
 [project.scripts]
 tender-extract = "tender_extract.cli:app"
 tender-review = "tender_extract.review_cli:app"
+tender-package = "tender_extract.package_cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tender_extract"]
