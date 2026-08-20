@@ -4,6 +4,10 @@ on:
   push:
     branches: [feat/real-world-acceptance-readme]
 
+concurrency:
+  group: materialize-public-examples
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -16,6 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: feat/real-world-acceptance-readme
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -23,7 +28,7 @@ jobs:
         run: python -m pip install --upgrade uv
       - name: Install package with PDF support
         run: uv sync --extra dev --extra pdf
-      - name: Download public originals and build compact fixtures
+      - name: Download public originals and build fixtures
         run: >-
           uv run python scripts/fetch_public_examples.py
           --target-count 12
@@ -46,6 +51,7 @@ jobs:
             exit 0
           fi
           git commit -m "test: add public tender PDF fixtures [examples-materialized]"
+          git pull --rebase origin feat/real-world-acceptance-readme
           git push origin HEAD:feat/real-world-acceptance-readme
       - name: Upload full-original acceptance report
         if: always()
