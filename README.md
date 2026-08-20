@@ -1,324 +1,425 @@
-# 标书信息提取工具
+# tender-extract · 中文标书结构化抽取
 
 [English](README_EN.md) | 中文
 
-## 📖 项目介绍
+> **不是把整本 PDF 丢给大模型。** `tender-extract` 先用高速、可复现的规则/路由处理确定性字段，只把低置信、冲突或缺失项交给 LLM；最终结果保留页码、原文和 PDF bbox，能够回到证据位置核查。
 
-### 项目背景
+![Real PDF acceptance benchmark](assets/acceptance-benchmark.svg)
 
-在招投标行业中，标书文档通常包含数百页甚至上千页的复杂信息。传统人工提取方式存在效率低下、成本高昂、准确性不足等问题。
+## 🚀 为什么值得用
 
-### 项目目的
+招标文件经常几十到几百页。真正难的不只是“抽到一个值”，而是同时做到：**快、可验证、能处理版本变化、能持续纠错**。
 
-`tender-extract` 通过**混合抽取技术**（规则引擎 + 大语言模型）实现智能化标书信息提取：
+`tender-extract` 目前已经形成完整闭环：
 
-- **自动化提取**：从大量文档中自动识别关键字段
-- **成本优化**：规则层覆盖60-90%字段，大幅降低大语言模型调用成本
-- **高精度保证**：结合确定性规则和智能推理
-- **可审计追溯**：保留原文证据，支持结果验证
-- **标准化输出**：统一结构化数据格式
+- ⚡ **高速规则基线**：13 份真实公开 PDF、911 页，在 GitHub Actions 上一次实测 **26.31 秒，34.62 页/秒**。
+- 🧠 **按需 LLM**：只处理低置信、冲突和缺失字段；已用 SiliconFlow `Qwen/Qwen3-8B` 做真实 API 验收。
+- 🔎 **证据可追溯**：字段可携带 `document_id + page + section + line + source_text + bbox`。
+- 📦 **多文件项目包**：招标文件、补遗、澄清、投标文件可以组成一个 Tender Package，支持 revision / supersedes / bidder 隔离。
+- 👀 **人工复核闭环**：低置信结果进入 review queue，人工 accept / correct / reject 后可直接导出 Gold Dataset。
+- 📊 **质量可量化**：内置 Precision / Recall / F1 评测和 CI quality gate，不再只看“有没有输出 JSON”。
 
-> 面向**千页**级别中文标书的**混合抽取**流水线：先用**规则/词典/命名实体识别**处理确定性字段，仅将**低置信/冲突**片段路由给**大语言模型**，在保证可审计的同时显著降本增效。
+---
 
-## 🚀 核心优势
+## 📊 真实 PDF 验收结果
 
-- **高效处理**：5个文档仅需2.31秒，平均每个文档0.46秒
-- **成本控制**：规则层覆盖60-90%硬字段，大语言模型调用次数大幅降低
-- **可审计性**：每个抽取结果都保留原文证据片段
-- **详细监控**：实时显示处理进度，便于调试
+PR5 不再只使用合成样本。仓库 `examples/` 中已经提交 **13 份 PDF**：原有合肥示例 + 12 份来自北京、陕西、河南、上海等公开采购/招标文件。
 
-## ✨ 功能特性
+### 离线确定性基线
 
-- **多格式文档解析**：直接输入 PDF/DOCX/TXT/Markdown，自动转换为统一中间格式
-- **模块化路由**：按章节内容路由到9个专业模块（基础信息/财务/资质/评标等）
-- **增强正则引擎**：分层置信度模式库，覆盖中文金额/日期/证照/联系方式等
-- **高吞吐规则层**：正则表达式+Aho–Corasick关键词+NER多方法竞争
-- **智能去重**：RapidFuzz+MinHash局部敏感哈希，避免重复处理
-- **按需大语言模型**：仅低置信/冲突时路由最小证据片段；支持 OpenAI / Azure / Anthropic / Gemini / Ollama / DeepSeek / 通义 / Kimi / 智谱 等主流厂商
-- **结构化输出**：Pydantic数据校验，保留证据片段便于审计
-- **表格感知**：从 Markdown 表格中提取金额/日期/人员信息
+运行环境：GitHub-hosted Ubuntu 24.04、Python 3.12、PDF 解析使用 PyMuPDF；LLM 关闭。
 
-### v0.2.0 新增功能
+| 指标 | 实测结果 |
+|---|---:|
+| PDF 数量 | **13** |
+| 总页数 | **911** |
+| 总文件大小 | **9.26 MB** |
+| 抽取字段数 | **72** |
+| 总耗时 | **26.31 s** |
+| 吞吐 | **34.62 pages/s** |
+| 平均每份 PDF | **2.02 s** |
+| 字段级语义检查 | **14 / 14** |
+| 运行失败 | **0** |
+| LLM 调用 | **0** |
 
-| 功能 | 说明 |
-|------|------|
-| PDF/DOCX 解析 | 通过 PyMuPDF/python-docx 解析，基于字体大小推断标题，提取表格 |
-| 扫描件 OCR | PaddleOCR 智能识别扫描页（自动检测文字页 vs 扫描页） |
-| 模块化路由 | 不全文直抽，按标题切块后路由到专业模块，每个模块独立定义输出 Schema |
-| 增强正则模式库 | 50+ 精确模式，分层置信度(0.95/0.8/0.6)，大写金额、统一社会信用代码等 |
-| 人员信息抽取 | 身份证号、姓名+职务、学历、专业证书编号、有效期（支持表格和散落文本） |
-| 多方法竞争 | 同一字段多种抽取方式并行，按置信度选择最佳结果 |
-| 跨字段验证 | 保证金不超过投标金额等逻辑校验 |
-| 真实示例文档 | 包含公开的政府采购招标文件 PDF 作为示例 |
+> 这是一次真实 CI 测量，不是 SLA。机器、PDF 版式、OCR 与磁盘环境不同，速度会变化。**34.62 pages/s 只代表不启用 LLM 的确定性基线。**
 
-## 📊 性能表现
+### `examples/example.pdf` 实测
 
-### 真实招标文件抽取效果
+仓库自带的 10 页政府采购文件现在会得到 6 个有效核心字段，平均置信度约 **0.94**，离线路径一次实测约 **0.35 秒**：
 
-以公开的《合肥市公安局瑶海分局雪亮工程支网运维服务采购项目》招标文件（PDF，10页）为例：
+```text
+project_name    合肥市公安局瑶海分局雪亮工程支网一期、二期、三期运维服务采购项目  0.99  page 1
+project_number  2024BFFFZ01583                                             0.95  page 1
+tenderer        合肥市公安局瑶海分局                                        0.95  page 1
+bid_amount      437.677万元                                                0.90  page 3
+bid_date        2024年7月1日17时30分                                       0.90  page 5
+contact_info    055166223642                                               0.95  page 7
+```
+
+这轮真实语料验收也直接发现并修复了多类问题，包括：PDF 项目名称跨行截断、项目名称吞掉下一字段、采购代理误识别为采购人、政府采购网址误识别为采购人、旧制度日期误识别为投标截止时间，以及无标签大金额误识别为报价等。
+
+---
+
+## 🧠 SiliconFlow / LLM 真实验收
+
+LLM 不是 README 里“理论支持”。当前 CI 使用真实 SiliconFlow API 验证：
 
 ```bash
-$ uv run tender-extract extract ./examples/example.pdf --out ./out
+export SILICONFLOW_API_KEY=your-key
 
-═══ 处理文件 1/1: example.pdf ═══
-  ✓ 解析完成: pdf → Markdown (8742 字符, 10 页)
-  ✓ 切块完成: 3 个切片
-  ✓ 模块路由: [投标递交]: 3, [投标人信息]: 2, [评标办法]: 1
-  ✓ 增强正则抽取...
-
-  ✅ 完成: 8 个字段, 平均置信度 0.90, 耗时 0.21s
-     project_name: 合肥市公安局瑶海分局雪亮工程支网 (置信度=0.95)
-     tenderer: 合肥市公安局瑶海分局 (置信度=0.95)
-     bid_amount: 437.677万元 (置信度=0.90)
-     bid_date: 2024年7月1日 (置信度=0.90)
-     project_number: 2024BFFFZ01583 (置信度=0.95)
-     contact_info: 0551-66223642 (置信度=0.95)
+uv run tender-extract extract examples/example.pdf \
+  --llm siliconflow \
+  --model Qwen/Qwen3-8B \
+  --out out
 ```
 
-**核心指标**：
-- ⚡ 处理速度：10页PDF仅需 **0.21秒**
-- 🎯 平均置信度：**0.90**
-- 💰 零LLM成本：规则层覆盖所有字段
-- 📄 支持格式：PDF / DOCX / TXT / Markdown
+一次真实验收结果：
 
-**抽取统计**：
-- 26种字段类型，平均每文档24.4个字段
-- 高频：项目名称、投标人、联系方式、日期
-- 中频：经营范围、投标金额、营业执照
-- 低频：注册资本、股东信息、项目经理
+| 路径 | 结果 |
+|---|---:|
+| 模型 | `Qwen/Qwen3-8B` |
+| 冷运行逻辑 LLM 调用 | **4** |
+| 冷运行真实网络 API 调用 | **4 / 4 成功** |
+| 冷运行耗时 | **423.31 s** |
+| 第二次运行缓存命中 | **4** |
+| 第二次新增网络调用 | **0** |
+| 第二次运行耗时 | **0.27 s** |
+| SiliconFlow Gold Micro F1 | **1.000** |
+| SiliconFlow Gold Macro F1 | **1.000** |
+| Exact case accuracy | **1.000** |
 
-### Markdown 示例
+冷运行时间受外部模型排队、推理和网络影响，这也是本项目坚持 **Rule first → LLM only when needed → persistent cache** 的原因。高置信规则字段不会因为启用了 LLM 就被随意覆盖；本次验收中 `project_name`、`project_number`、`tenderer` 均被完整保留，`bid_date` 的最终主证据由 LLM 复核得到。
 
-仓库还提供一份结构完整的 Markdown 样例，适合快速验证安装：
+如果你只需要高速批处理：
 
 ```bash
-uv run tender-extract extract ./examples/example.md --out ./out
-```
-
-`examples/` 目录：
-
-| 文件 | 说明 |
-|------|------|
-| `examples/example.md` | 合成标书，覆盖项目名称/投标人/金额/保证金/人员 |
-| `examples/example.pdf` | 真实政府采购招标文件（合肥市雪亮工程项目，10页） |
-
-### 人员信息抽取效果
-
-自动从标书中提取分散在不同位置的人员信息（表格 + 正文 + 扫描件 OCR）：
-
-```
-找到 3 人:
-1. 张建国 (项目经理) 身份证:420102****2718
-2. 李明辉 (技术负责人) 身份证:320106****0035 硕士/结构工程
-3. 王晓东 (安全员) 身份证:510103****3456
-
-找到 4 个证书:
-  [建造师] 鄂142011203456
-  [工程师职称] 苏高工2019-03456
-  [安全B证] 鄂建安B(2021)0045678
-  [有效期] 2027年12月31日
-```
-
-**支持的人员信息类型**：
-- 📋 身份证号码（18位/15位，含校验位验证）
-- 👤 姓名 + 职务角色（项目经理/技术负责人/安全员等）
-- 🎓 学历、毕业院校、专业
-- 📜 建造师/工程师/安全员等证书编号
-- 📅 证书有效期
-- 🏢 从资质表格中批量提取
-
-**OCR 策略**（处理扫描件）：
-- 逐页智能检测：文字页用 PyMuPDF（快），扫描页用 PaddleOCR（准）
-- 支持身份证、毕业证、资格证书扫描件的文字识别
-
-身份证号默认脱敏写入 JSON；需要完整号码时加 `--include-pii`。
-
----
-
-## 🛠️ 快速开始
-
-### 安装
-
-```bash
-# 克隆并安装（推荐：安装所有可选依赖）
-git clone <repository-url>
-cd tender-extract
-uv sync --extra all
-
-# 或最小安装
-uv sync
-
-# 可选：单独安装
-uv sync --extra pdf    # PDF 解析 (pymupdf)
-uv sync --extra docx   # DOCX 解析 (python-docx)
-uv sync --extra ocr    # 扫描件 OCR (paddlepaddle + paddleocr)
-
-# 验证安装
-uv run tender-extract --help
-```
-
-### 基础用法
-
-```bash
-# 推荐：支持 PDF/DOCX/TXT/MD，模块化路由 + 增强正则
-uv run tender-extract extract ./examples/example.pdf --out ./out
-uv run tender-extract extract ./examples/ --out ./out --verbose
-
-# 仅规则抽取（不调用大模型）
-uv run tender-extract extract ./examples/ --out ./out --llm none
-
-# 启用大语言模型（需要对应厂商的 API 密钥）
-export OPENAI_API_KEY=your-api-key
-uv run tender-extract extract ./examples/ --out ./out --llm openai --model gpt-4o-mini
-
-export DEEPSEEK_API_KEY=your-api-key
-uv run tender-extract extract ./examples/ --out ./out --llm deepseek
-
-# 本地 Ollama
-uv run tender-extract extract ./examples/ --out ./out --llm ollama --model deepseek-r1:32b
-
-# 查看全部厂商
-uv run tender-extract providers
-```
-
-`extract-v2` 仍可用，是 `extract` 的兼容别名。
-
-### 主要参数
-
-- `input_path`：输入文件或目录
-- `--out`：输出目录（默认./out）
-- `--llm`：`none` 或厂商 ID（`openai` / `ollama` / `anthropic` / `deepseek` / `qwen` 等，见 `providers`）
-- `--model`：模型名称（Azure 填部署名）
-- `--base-url`：覆盖 API 地址
-- `--use-ner`：启用中文命名实体识别
-- `--include-pii`：输出完整身份证号（默认掩码）
-- `--verbose`：显示详细进度
-- `--debug`：大语言模型调试模式
-
----
-
-## 📂 项目结构
-
-```
-tender-extract/
-├── config/example.yaml           # 规则配置（正则模式、同义词词典）
-├── data/dicts/keywords_zh.txt    # 关键词词典
-├── examples/
-│   ├── example.md                # Markdown 示例文件
-│   └── example.pdf               # 真实招标文件（合肥市政府采购项目）
-└── src/tender_extract/
-    ├── cli.py                    # 命令行接口（extract / extract-v2）
-    ├── pipeline.py               # 统一抽取流水线
-    ├── document_parser.py        # 文档解析层（PDF/DOCX → Markdown + OCR）
-    ├── module_router.py          # 模块化路由层（9个专业模块）
-    ├── extraction_engine.py      # 增强抽取引擎（多方法竞争+置信度）
-    ├── patterns.py               # 正则模式库（分层置信度）
-    ├── personnel_extractor.py    # 人员信息专项抽取（身份证/证书/学历）
-    ├── preprocess.py             # Markdown 预处理 + 章节树构建
-    ├── chunker.py                # 智能切块（LangChain 分割器）
-    ├── rules.py                  # 规则抽取（正则+Aho-Corasick关键词）
-    ├── ner.py                    # 中文 NER（jieba）
-    ├── dedupe.py                 # 去重引擎（RapidFuzz + MinHash LSH）
-    ├── llm_providers.py          # 主流 LLM 厂商预设
-    ├── llm_router.py             # LLM 按需路由
-    ├── merge.py                  # 结果合并与冲突解决
-    └── schema.py                 # Pydantic 数据模型
+uv run tender-extract extract ./documents --llm none --out out
 ```
 
 ---
 
-## ⚙️ 配置
+## 🔎 输出不是只有 value：可以回到原文
 
-### 规则配置
-
-编辑 `config/example.yaml`：
-
-```yaml
-patterns:
-  date:
-    - pattern: r'(\d{4}年\d{1,2}月\d{1,2}日)'
-      confidence: 0.9
-  amount:
-    - pattern: r'人民币[壹贰叁肆伍陆柒捌玖拾佰仟万亿]+元'
-      confidence: 0.8
-
-synonyms:
-  - [评标办法, 资格条件, 联合体]
-  - [法定代表人, 法人代表, 负责人]
-```
-
----
-
-## 🔍 工作原理
-
-```
-输入(PDF/DOCX/MD) → ① 解析层 → ② 切块层 → ③ 模块路由 → ④ 抽取层 → ⑤ 合并输出
-                     (PyMuPDF)  (LangChain)  (关键词匹配)  (Regex+NER+LLM)  (JSON)
-```
-
-1. **解析层**：PDF/DOCX/TXT 统一转 Markdown，保留标题层级和表格
-2. **切块层**：按章节切分，LangChain递归字符切片
-3. **模块路由**：按关键词将切片路由到9个专业模块（基础信息/财务/资质/评标等）
-4. **抽取层**：增强正则（分层置信度）+ NER + 按需LLM
-5. **合并输出**：去重、冲突检测、跨字段验证
-
----
-
-## 📊 输出格式
+简化后的真实输出结构类似：
 
 ```json
 {
   "metadata": {
-    "filename": "example.md",
-    "processing_time": 2.31,
-    "total_fields": 24
+    "filename": "example.pdf",
+    "total_pages": 10,
+    "processing_time": 0.35
   },
   "fields": {
     "project_name": {
-      "primary_value": "测试工程项目",
-      "confidence": 0.95,
-      "values": [{
-        "value": "测试工程项目",
-        "source": "rules",
-        "start": 100,
-        "end": 110
-      }]
+      "primary_value": "合肥市公安局瑶海分局雪亮工程支网一期、二期、三期运维服务采购项目",
+      "confidence": 0.99,
+      "values": [
+        {
+          "source": "regex_enhanced",
+          "location": {
+            "document_id": "example.pdf",
+            "page": 1,
+            "section_path": [],
+            "source_text": "合肥市公安局瑶海分局雪亮工程支网一期、二期、三期运维服务采购项目"
+          }
+        }
+      ]
     }
   }
 }
 ```
 
----
+PDF 文本能够可靠定位时，`location` 还会包含真实 `bbox`；Markdown/TXT 没有物理页面概念时不会伪造页码和坐标，而是保留字符区间、行号和章节路径。
 
-## 🎯 适用场景
+这意味着上层系统可以继续实现：
 
-- **招标代理**：批量处理投标文件
-- **评标专家**：快速获取标书核心信息
-- **监管部门**：自动化合规审核
-- **研究机构**：标书数据分析
-- **企业投标**：竞争对手分析
+**字段 → 来源文件 → 页码 → bbox → PDF Viewer 高亮**
+
+详细说明见 [`docs/evidence.md`](docs/evidence.md)。
 
 ---
 
-## 🐛 故障排除
+## 🛠️ 快速开始
 
-### 常见问题
+### 1. 安装
+
+要求 Python **3.12+**。
 
 ```bash
-# 安装失败
-python --version  # 确保3.12+
-uv sync --reinstall
+git clone https://github.com/Inupedia/tender-extract.git
+cd tender-extract
 
-# Ollama连接失败
-curl http://your-ollama-server:11434/api/tags
-export OLLAMA_BASE_URL=http://your-ollama-server:11434
+# 常用：包含 PDF 支持
+uv sync --extra pdf
 
-# 调试技巧
-uv run tender-extract extract ./examples/ --out ./out --verbose --debug
+# 或安装全部可选能力（PDF / DOCX / OCR / test）
+uv sync --extra all
+```
+
+### 2. 跑一份真实 PDF
+
+```bash
+uv run tender-extract extract examples/example.pdf --out out
+```
+
+输出：
+
+```text
+out/example.pdf.json
+```
+
+### 3. 批量处理目录
+
+```bash
+uv run tender-extract extract examples/ --pattern "*.pdf" --llm none --out out
+```
+
+### 4. 查看支持的 LLM
+
+```bash
+uv run tender-extract providers
+```
+
+除 SiliconFlow 外，Provider Registry 还包含 OpenAI、Azure OpenAI、Anthropic、Gemini、DeepSeek、DashScope/Qwen、Kimi、智谱、火山方舟、Ollama、OpenRouter、Groq、Together、Mistral、xAI 等，以及任意 OpenAI-compatible endpoint。
+
+---
+
+## 📦 一个项目不止一份文件：Tender Package
+
+现实里的招投标项目通常不是一个 PDF：
+
+```text
+某项目/
+├── 招标文件.pdf
+├── 补遗01.pdf
+├── 澄清01.pdf
+├── A公司投标文件.pdf
+└── B公司投标文件.pdf
+```
+
+`tender-package` 对这些文件建立明确的项目级语义：
+
+- `tender / amendment / clarification / bid / attachment / other`
+- `revision`
+- `supersedes`
+- 招标侧 effective view
+- 旧值与冲突保留
+- 投标文件按 bidder 严格隔离
+- A 投标人的字段不会覆盖 B 投标人
+
+```bash
+uv run tender-package validate package.yaml
+uv run tender-package inspect package.yaml
+uv run tender-package extract package.yaml --out out/package.json
+```
+
+示例 manifest：
+
+```yaml
+package_id: demo-water-project
+project_name: 某水利工程
+
+documents:
+  - id: tender-v1
+    path: ./招标文件.pdf
+    role: tender
+    revision: 1
+
+  - id: amendment-1
+    path: ./补遗01.pdf
+    role: amendment
+    revision: 1
+    supersedes: []
+
+  - id: bidder-a
+    path: ./A公司投标文件.pdf
+    role: bid
+    bidder: A公司
+    revision: 1
+```
+
+详细说明见 [`docs/tender-package.md`](docs/tender-package.md)。
+
+---
+
+## 👀 Human Review：把人工修正变成下一轮测试数据
+
+低置信、冲突或 LLM 恢复字段可以进入本地 review queue：
+
+```bash
+uv run tender-review run examples/example.pdf --queue .review/queue.jsonl
+uv run tender-review list --queue .review/queue.jsonl
+```
+
+人工可以：
+
+```bash
+uv run tender-review resolve REVIEW_ID --action accept
+uv run tender-review resolve REVIEW_ID --action correct --value "正确值"
+uv run tender-review resolve REVIEW_ID --action reject
+```
+
+处理完成后直接回流成 Gold Dataset：
+
+```bash
+uv run tender-review export \
+  --queue .review/queue.jsonl \
+  --out eval/gold-reviewed.jsonl
+```
+
+所以流程不是“模型抽错 → 人改一下 → 下次继续错”，而是：
+
+**抽取 → 待复核 → 人工决策 → Gold Dataset → Regression / F1 Gate**
+
+详细说明见 [`docs/human-review.md`](docs/human-review.md)。
+
+---
+
+## 📈 用 F1 验证质量
+
+```bash
+uv run tender-extract eval eval/gold.jsonl
+```
+
+CI 可以设置质量底线：
+
+```bash
+uv run tender-extract eval eval/gold.jsonl --fail-under 0.95
+```
+
+也可以评测真实 LLM：
+
+```bash
+export SILICONFLOW_API_KEY=your-key
+
+uv run tender-extract eval eval/gold-siliconflow.jsonl \
+  --llm siliconflow \
+  --model Qwen/Qwen3-8B \
+  --fail-under 1.0
+```
+
+输出包含 per-field Precision / Recall / F1、Micro F1、Macro F1、exact case accuracy、失败字段和 LLM 调用次数。
+
+详见 [`docs/evaluation.md`](docs/evaluation.md)。
+
+---
+
+## 📚 `examples/` 真实验收语料
+
+| 文件 | 地区 | 页数 |
+|---|---|---:|
+| `example.pdf` | 安徽 | 10 |
+| `public-01-beijing-landscape-lighting-2024.pdf` | 北京 | 89 |
+| `public-02-shaanxi-xianyang-water-smart-2026.pdf` | 陕西 | 146 |
+| `public-03-henan-tanghe-2026.pdf` | 河南 | 64 |
+| `public-04-shanghai-single-source-2026.pdf` | 上海 | 37 |
+| `public-05-shanghai-open-bid-20312273.pdf` | 上海 | 56 |
+| `public-06-henan-zhengzhou-2026-312.pdf` | 河南 | 69 |
+| `public-07-shanghai-digital-ops-2026.pdf` | 上海 | 119 |
+| `public-08-shaanxi-baoji-books-2025.pdf` | 陕西 | 80 |
+| `public-09-henan-shangqiu-2026.pdf` | 河南 | 58 |
+| `public-10-shanghai-exam-equipment-2026.pdf` | 上海 | 75 |
+| `public-11-shanghai-population-service-2026.pdf` | 上海 | 55 |
+| `public-12-shanghai-xuhui-municipal-2026.pdf` | 上海 | 53 |
+
+12 份新增公开文件的官方来源 URL、原始文件大小、页数和 SHA256 记录在 [`examples/public-corpus.lock.json`](examples/public-corpus.lock.json)；候选来源清单在 [`examples/public-sources.json`](examples/public-sources.json)。正常 CI **不访问这些政府网站**，直接使用仓库内已锁定的 PDF，因此验收可重复。
+
+复现实验：
+
+```bash
+uv run python scripts/acceptance_corpus.py \
+  --examples examples \
+  --min-pdfs 13 \
+  --report artifacts/real-pdf-acceptance.json
 ```
 
 ---
 
-## 📝 许可证
+## ⚙️ 工作原理
 
-MIT许可证 - 详见 [LICENSE](LICENSE) 文件。
+```text
+PDF / DOCX / MD / TXT
+        │
+        ▼
+  Document Parser ───── OCR fallback
+        │
+        ▼
+  Chunk + Module Router
+        │
+        ▼
+ Regex / Dictionary / NER
+        │
+        ├── high confidence ───────────────┐
+        │                                  │
+        └── low/conflict/missing → LLM ───┤
+                                           ▼
+                                  Conflict Resolution
+                                           │
+                                           ▼
+                                  Evidence Locator
+                                  page / bbox / section
+                                           │
+                                           ▼
+                                      Pydantic JSON
+```
+
+设计原则很简单：**确定的事情不要花模型的钱，不确定的事情不要假装规则一定正确。**
+
+---
+
+## ✨ 主要能力
+
+- PDF / DOCX / TXT / Markdown 统一解析
+- PyMuPDF 文本页解析，扫描页可选 PaddleOCR
+- 章节切块 + 模块化路由
+- 中文项目名、项目编号、采购人、报价、日期、联系方式等规则抽取
+- 人员、证书、身份证等专项抽取（PII 默认脱敏）
+- RapidFuzz + MinHash 去重
+- 低置信 / conflict / missing-field LLM routing
+- LLM persistent cache
+- structured evidence：page / line / section / bbox / source span
+- Gold Dataset + Precision / Recall / F1
+- Human Review → Gold feedback loop
+- Tender Package 多文件版本和投标人隔离
+
+---
+
+## 🧪 测试与 CI
+
+项目 CI 分层执行：
+
+```text
+unit
+integration
+E2E
+legacy regression
+package build
+combined coverage
+real PDF acceptance (13 PDFs / 911 pages)
+SiliconFlow live acceptance
+```
+
+其中 Real PDF Acceptance 完全离线；SiliconFlow Live 使用 GitHub Actions secret，不会把 API key 写入仓库或 artifact。
+
+本地：
+
+```bash
+uv sync --extra dev --extra pdf
+uv run pytest -q
+```
+
+---
+
+## ⚠️ 边界说明
+
+- **34.62 pages/s 不包含 OCR 和网络 LLM 时间。** 扫描件 OCR 会明显更慢。
+- LLM 延迟取决于模型、服务商、排队和网络；建议保留缓存，并让规则层先处理明确字段。
+- PDF 可以提供真实物理页和 bbox；DOCX/Markdown/TXT 无法可靠推断物理分页时不会伪造坐标。
+- 当前抽取规则针对中文招投标/政府采购文本进行了较多适配，但行业、地区和模板差异仍然需要 Gold Dataset 持续校准。
+
+---
+
+## 📄 License
+
+MIT License
