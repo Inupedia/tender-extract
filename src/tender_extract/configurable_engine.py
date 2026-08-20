@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 _PROJECT_FIELD_LABELS = (
-    r"项目编号|采购项目编号|招标编号|标段编号|项目地点|建设地点|项目单位|"
+    r"项目编号(?:/包号)?|采购项目编号|招标编号|标段编号|项目地点|建设地点|项目单位|"
     r"招标人|采购人|投标人|采购代理机构|代理机构|采购方式|预算金额|项目预算|最高限价"
 )
 _PROJECT_NAME_NEXT_FIELD = re.compile(rf"(?:{_PROJECT_FIELD_LABELS})[：:]")
@@ -37,11 +37,16 @@ _BID_AMOUNT_CONTEXT = re.compile(
 )
 _CONTACT_LABEL = re.compile(r"(?:电话|联系电话|办公电话|传真)[：:]")
 
+_DATE_TIME_VALUE = (
+    r"20\d{2}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}\s*(?:日)?"
+    r"(?:\s*\d{1,2}\s*(?::|时)\s*\d{2}(?::\d{2})?)?"
+)
 _DEADLINE_PATTERNS: list[tuple[re.Pattern, float, str]] = [
     (
         re.compile(
-            r"(?:提交投标文件截止时间|提交响应文件截止时间|响应文件提交截止时间|投标截止时间|截止/谈判时间)[：:]?\s*"
-            r"(20\d{2}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}\s*(?:日)?(?:\s*\d{1,2}\s*(?::|时)\s*\d{2}(?::\d{2})?)?)",
+            rf"(?:提交投标文件截止时间|提交响应文件截止时间|响应文件提交截止时间|"
+            rf"投标文件递交截止时间|投标截止时间|截止/谈判时间|开标时间)[：:]?\s*"
+            rf"({_DATE_TIME_VALUE})",
             re.IGNORECASE | re.MULTILINE,
         ),
         0.98,
@@ -49,11 +54,20 @@ _DEADLINE_PATTERNS: list[tuple[re.Pattern, float, str]] = [
     ),
     (
         re.compile(
-            r"投标人应于\s*(20\d{2}[-/]\d{1,2}[-/]\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?)",
+            rf"(?:投标人应于|本次招标将于)\s*({_DATE_TIME_VALUE})",
             re.IGNORECASE | re.MULTILINE,
         ),
-        0.97,
-        "投标人应于-截止时间",
+        0.98,
+        "投标/开标动作时间",
+    ),
+    (
+        re.compile(
+            rf"(?:投标文件递交地点及递交截止时间|投标文件递交截止时间)"
+            rf"[\s\S]{{0,160}}?时间[：:]\s*({_DATE_TIME_VALUE})",
+            re.IGNORECASE | re.MULTILINE,
+        ),
+        0.98,
+        "递交截止时间表格",
     ),
 ]
 
@@ -66,19 +80,41 @@ class ConfigurableExtractionEngine(ExtractionEngine):
         self._compiled_patterns.setdefault("project_name", []).insert(
             0, _WRAPPED_PROJECT_NAME_PATTERN
         )
+        # tenderer 只表示采购人/招标人；采购代理机构不能混入同一字段。
+        self._compiled_patterns["tenderer"] = [
+            item
+            for item in self._compiled_patterns.get("tenderer", [])
+            if item[2] != "采购/招标代理机构"
+        ]
         # `legal_representative` 只能表示法定代表人，不能把联系人/项目经理/授权代表混成同一字段。
         self._compiled_patterns["legal_representative"] = [
             item
             for item in self._compiled_patterns.get("legal_representative", [])
             if item[2] in {"法定代表人", "法人代表"}
         ]
-        # 真实采购文件的截止时间表达比基础规则更多，明确标签应压过正文中的普通日期。
-        self._compiled_patterns.setdefault("bid_date", []).extend(_DEADLINE_PATTERNS)
+        # 明确的投标/响应截止时间必须优先于正文中的普通日期。
+        existing_dates = self._compiled_patterns.get("bid_date", [])
+        self._compiled_patterns["bid_date"] = [*_DEADLINE_PATTERNS, *existing_dates]
         self._apply_custom_patterns(custom_patterns or {})
 
     def _clean_value(
         self, value: str, field_name: str, full_match: str
     ) -> tuple[Optional[str], Optional[str], Optional[str]]:
+        # 基础公司清洗器偏向企业后缀，会误删“上海大学”等采购主体。
+        # tenderer 在这里单独按公共机构/企业主体后缀校验。
+        if field_name == "tenderer":
+            cleaned = value.strip()
+            cleaned = re.sub(
+                r"^(?:采购人|招标人|采购单位|招标单位)\s*[：:]\s*", "", cleaned
+            ).strip()
+            cleaned = re.sub(r"^[^a-zA-Z\u4e00-\u9fff]+", "", cleaned)
+            cleaned = re.sub(r"[^a-zA-Z\u4e00-\u9fff（）()]+$", "", cleaned)
+            if len(cleaned) < 4 or _TENDERER_BAD.search(cleaned):
+                return None, None, None
+            if not _TENDERER_SUFFIX.search(cleaned):
+                return None, None, None
+            return cleaned, None, None
+
         cleaned, unit, normalized = super()._clean_value(value, field_name, full_match)
         if field_name == "project_name" and cleaned:
             # 真实采购文件常把项目名称在 PDF 中折成两行。先在明确的下一个字段标签前截断，
@@ -86,13 +122,6 @@ class ConfigurableExtractionEngine(ExtractionEngine):
             cleaned = _PROJECT_NAME_NEXT_FIELD.split(cleaned, maxsplit=1)[0]
             cleaned = re.sub(r"\s*[\r\n]+\s*", "", cleaned).strip()
             if len(cleaned) < 5:
-                return None, unit, normalized
-
-        if field_name == "tenderer" and cleaned:
-            cleaned = re.sub(r"^(?:采购人|招标人|采购单位|招标单位)\s*[：:]\s*", "", cleaned).strip()
-            if _TENDERER_BAD.search(cleaned):
-                return None, unit, normalized
-            if not _TENDERER_SUFFIX.search(cleaned):
                 return None, unit, normalized
 
         if field_name == "legal_representative" and cleaned:
