@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pymupdf
 
+from tender_extract.evaluation import normalize_value
 from tender_extract.pipeline import ExtractionPipeline
 from tender_extract.schema import ProcessingConfig
 
@@ -81,11 +82,53 @@ def run_one(path: Path) -> dict:
     }
 
 
+def _load_expectations(path: Path | None) -> dict[str, dict[str, str]]:
+    if path is None or not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("acceptance expectations must be a JSON object")
+    return {
+        str(filename): {str(field): str(value) for field, value in fields.items()}
+        for filename, fields in payload.items()
+        if isinstance(fields, dict)
+    }
+
+
+def _check_expectations(
+    rows: list[dict], expectations: dict[str, dict[str, str]]
+) -> tuple[int, list[str]]:
+    by_file = {row["file"]: row for row in rows}
+    checked = 0
+    failures: list[str] = []
+    for filename, fields in expectations.items():
+        row = by_file.get(filename)
+        if row is None:
+            continue
+        for field_name, expected in fields.items():
+            checked += 1
+            detail = row["fields_detail"].get(field_name)
+            actual = detail.get("value") if detail else None
+            if actual is None:
+                failures.append(f"{filename}/{field_name}: missing, expected={expected!r}")
+                continue
+            if normalize_value(actual) != normalize_value(expected):
+                failures.append(
+                    f"{filename}/{field_name}: expected={expected!r}, actual={actual!r}"
+                )
+    return checked, failures
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--examples", default="examples", help="Directory containing PDFs")
     parser.add_argument("--report", default="artifacts/acceptance.json")
     parser.add_argument("--min-pdfs", type=int, default=1)
+    parser.add_argument(
+        "--expectations",
+        default="examples/acceptance-expectations.json",
+        help="Optional field-level semantic acceptance expectations",
+    )
     parser.add_argument(
         "--require-example",
         action=argparse.BooleanOptionalAction,
@@ -140,6 +183,11 @@ def main() -> int:
             if example["bbox_located_spans"] == 0:
                 failures.append("example.pdf: no bbox-aware evidence")
 
+    expectations_path = Path(args.expectations) if args.expectations else None
+    expectations = _load_expectations(expectations_path)
+    semantic_checks, semantic_failures = _check_expectations(rows, expectations)
+    failures.extend(semantic_failures)
+
     total_pages = sum(row["pages"] for row in rows)
     total_time = sum(row["wall_time_seconds"] for row in rows)
     summary = {
@@ -151,6 +199,7 @@ def main() -> int:
         "pages_per_second": round(total_pages / total_time, 2) if total_pages and total_time else None,
         "avg_seconds_per_pdf": round(statistics.mean(row["wall_time_seconds"] for row in rows), 4) if rows else None,
         "avg_fields_per_pdf": round(statistics.mean(row["fields"] for row in rows), 2) if rows else None,
+        "semantic_checks": semantic_checks,
         "failures": failures,
     }
     payload = {"summary": summary, "documents": rows}
