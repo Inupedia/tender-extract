@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+import tender_extract.server as server
 from tender_extract.server import app
 
 
@@ -54,3 +55,20 @@ def test_rejects_unsupported_upload() -> None:
         files={"file": ("sample.exe", b"not a document", "application/octet-stream")},
     )
     assert response.status_code == 415
+
+
+def test_optional_api_key_protects_extraction(monkeypatch) -> None:
+    monkeypatch.setattr(server, "API_KEY", "test-secret")
+
+    missing = client.post(
+        "/v1/extract",
+        files={"file": ("sample.txt", b"project name: demo", "text/plain")},
+    )
+    assert missing.status_code == 401
+
+    allowed = client.post(
+        "/v1/extract?llm_provider=none",
+        headers={"X-API-Key": "test-secret"},
+        files={"file": ("sample.txt", b"project name: demo", "text/plain")},
+    )
+    assert allowed.status_code == 200
