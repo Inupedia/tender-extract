@@ -2,11 +2,17 @@
 
 # tender-extract
 
-**把中文采购 / 招投标文档，变成可核查的结构化数据。**
+**面向中文采购 / 招投标文档的结构化抽取工具。**
 
-规则走快路径 · 大模型只处理不确定项 · 每个结果都能回到原文
+规则与结构抽取优先，低置信字段可选 LLM 复核；输出保留页码、原文与 PDF 坐标证据。
 
-`PDF` · `DOCX` · `Markdown` · `TXT` · `CLI` · `HTTP API` · `Docker` · `Python 3.12+`
+<p>
+  <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/FastAPI-HTTP_API-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI HTTP API">
+  <img src="https://img.shields.io/badge/Docker-GHCR-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker GHCR">
+  <img src="https://img.shields.io/badge/GitHub_Actions-tested-2088FF?style=flat-square&logo=githubactions&logoColor=white" alt="GitHub Actions tested">
+  <img src="https://img.shields.io/badge/Formats-PDF%20%7C%20DOCX%20%7C%20Markdown%20%7C%20TXT-57606A?style=flat-square" alt="PDF DOCX Markdown TXT">
+</p>
 
 </div>
 
@@ -81,7 +87,7 @@ curl -s \
 
 [查看 GHCR 镜像版本](https://github.com/Inupedia/tender-extract/pkgs/container/tender-extract-server)
 
-## 为什么不是“整本 PDF 全丢给大模型”
+## 抽取流程
 
 ```text
 PDF / DOCX / Markdown / TXT
@@ -95,7 +101,7 @@ PDF / DOCX / Markdown / TXT
    高置信直接输出   低置信 / 冲突 / 缺失
         │           │
         │           ▼
-        │        大模型复核
+        │        LLM 复核
         │           │
         └─────┬─────┘
               ▼
@@ -105,7 +111,7 @@ PDF / DOCX / Markdown / TXT
         结构化 JSON
 ```
 
-确定字段走本地快路径，不额外等待模型；只有不确定字段才交给 LLM。这样同时保留速度、成本控制和语义理解能力。
+默认先用规则与结构化方法完成可确定字段；只有低置信、冲突或缺失字段才进入可选的 LLM 复核流程。
 
 ## 核心能力
 
@@ -188,7 +194,7 @@ uv run tender-extract extract examples/example.pdf --out out
 uv run tender-extract extract ./documents --pattern "*.pdf" --out out
 ```
 
-## 大模型是可选增强，不是前置依赖
+## LLM 复核（可选）
 
 SiliconFlow `Qwen/Qwen3-8B` 已完成真实接口验收：冷启动测试 **4/4 网络调用成功**；同一文档第二次运行 **4 次全部命中缓存、0 次新增网络调用**。当前这组 live Gold acceptance case 的 **Micro F1 / Macro F1 均为 1.000**。
 
