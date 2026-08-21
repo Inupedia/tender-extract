@@ -81,7 +81,7 @@ curl -s \
 
 [查看 GHCR 镜像版本](https://github.com/Inupedia/tender-extract/pkgs/container/tender-extract-server)
 
-## 它为什么不是“整本 PDF 全丢给大模型”
+## 为什么不是“整本 PDF 全丢给大模型”
 
 ```text
 PDF / DOCX / Markdown / TXT
