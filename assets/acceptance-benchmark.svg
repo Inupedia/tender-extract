@@ -1,51 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
-  <title id="title">tender-extract 真实文档验收 / Real document acceptance</title>
-  <desc id="desc">13 份真实采购与招投标 PDF，共 911 页；GitHub Actions 中不启用大模型时总耗时 26.31 秒，平均 34.62 页每秒，14 项语义校验全部通过，运行失败为 0。</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="390" viewBox="0 0 1200 390" role="img" aria-labelledby="title desc">
+  <title id="title">tender-extract 真实文档验收</title>
+  <desc id="desc">13 份真实采购与招投标 PDF，共 911 页；GitHub Actions 中关闭大模型时总耗时 26.31 秒，平均 34.62 页每秒，运行失败文档为 0。</desc>
 
-  <rect width="1200" height="420" rx="24" fill="#0b0c0e"/>
+  <rect width="1200" height="390" rx="24" fill="#0b0c0e"/>
 
   <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
-    <text x="64" y="60" fill="#8b949e" font-size="20" font-weight="600" letter-spacing="1.2">TENDER-EXTRACT / REAL DOCUMENT ACCEPTANCE</text>
-    <text x="64" y="116" fill="#f0f2f4" font-size="44" font-weight="750">13 份真实 PDF · 911 页</text>
-    <text x="64" y="153" fill="#a6adb7" font-size="20">Committed corpus · GitHub Actions · LLM disabled</text>
+    <text x="64" y="60" fill="#8b949e" font-size="20" font-weight="600">真实文档验收</text>
+    <text x="64" y="118" fill="#f0f2f4" font-size="46" font-weight="750">13 份真实招投标 PDF · 911 页</text>
+    <text x="64" y="156" fill="#a6adb7" font-size="20">仓库内验收集 · GitHub Actions 实测 · 关闭大模型</text>
 
-    <circle cx="1034" cy="63" r="7" fill="#62d69a"/>
-    <text x="1054" y="70" fill="#d9dde2" font-size="20" font-weight="650">14 / 14 PASS</text>
+    <line x1="64" y1="194" x2="1136" y2="194" stroke="#30343a" stroke-width="1"/>
 
-    <line x1="64" y1="190" x2="1136" y2="190" stroke="#30343a" stroke-width="1"/>
+    <g transform="translate(64 238)">
+      <text x="0" y="0" fill="#8b949e" font-size="18">总耗时</text>
+      <text x="0" y="54" fill="#f0f2f4" font-size="42" font-weight="750">26.31 秒</text>
 
-    <g transform="translate(64 230)">
-      <text x="0" y="0" fill="#8b949e" font-size="18">TOTAL TIME</text>
-      <text x="0" y="54" fill="#f0f2f4" font-size="42" font-weight="750">26.31 s</text>
+      <line x1="300" y1="-24" x2="300" y2="76" stroke="#30343a" stroke-width="1"/>
 
-      <line x1="238" y1="-24" x2="238" y2="76" stroke="#30343a" stroke-width="1"/>
+      <text x="350" y="0" fill="#8b949e" font-size="18">处理速度</text>
+      <text x="350" y="54" fill="#f0f2f4" font-size="42" font-weight="750">34.62 页/秒</text>
 
-      <text x="278" y="0" fill="#8b949e" font-size="18">THROUGHPUT</text>
-      <text x="278" y="54" fill="#f0f2f4" font-size="42" font-weight="750">34.62 pages/s</text>
+      <line x1="735" y1="-24" x2="735" y2="76" stroke="#30343a" stroke-width="1"/>
 
-      <line x1="616" y1="-24" x2="616" y2="76" stroke="#30343a" stroke-width="1"/>
-
-      <text x="656" y="0" fill="#8b949e" font-size="18">SEMANTIC CHECKS</text>
-      <text x="656" y="54" fill="#f0f2f4" font-size="42" font-weight="750">14 / 14</text>
-
-      <line x1="882" y1="-24" x2="882" y2="76" stroke="#30343a" stroke-width="1"/>
-
-      <text x="922" y="0" fill="#8b949e" font-size="18">FAILURES</text>
-      <text x="922" y="54" fill="#62d69a" font-size="42" font-weight="750">0</text>
+      <text x="785" y="0" fill="#8b949e" font-size="18">运行失败文档</text>
+      <text x="785" y="54" fill="#62d69a" font-size="42" font-weight="750">0</text>
     </g>
 
     <line x1="64" y1="330" x2="1136" y2="330" stroke="#30343a" stroke-width="1"/>
 
-    <text x="64" y="374" fill="#8b949e" font-size="18" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace">field</text>
-    <text x="129" y="374" fill="#4b5159" font-size="18">→</text>
-    <text x="160" y="374" fill="#c8cdd3" font-size="18" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace">document</text>
-    <text x="258" y="374" fill="#4b5159" font-size="18">→</text>
-    <text x="289" y="374" fill="#c8cdd3" font-size="18" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace">page</text>
-    <text x="344" y="374" fill="#4b5159" font-size="18">→</text>
-    <text x="375" y="374" fill="#c8cdd3" font-size="18" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace">source text</text>
-    <text x="498" y="374" fill="#4b5159" font-size="18">→</text>
-    <text x="529" y="374" fill="#c8cdd3" font-size="18" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace">bbox</text>
+    <text x="64" y="370" fill="#8b949e" font-size="18" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace">字段</text>
+    <text x="111" y="370" fill="#4b5159" font-size="18">→</text>
+    <text x="142" y="370" fill="#c8cdd3" font-size="18">来源文件</text>
+    <text x="228" y="370" fill="#4b5159" font-size="18">→</text>
+    <text x="259" y="370" fill="#c8cdd3" font-size="18">页码</text>
+    <text x="306" y="370" fill="#4b5159" font-size="18">→</text>
+    <text x="337" y="370" fill="#c8cdd3" font-size="18">原文片段</text>
+    <text x="423" y="370" fill="#4b5159" font-size="18">→</text>
+    <text x="454" y="370" fill="#c8cdd3" font-size="18">PDF 坐标 / 高亮</text>
 
-    <text x="1136" y="374" text-anchor="end" fill="#8b949e" font-size="18">结果能回到原文核查 / traceable evidence</text>
+    <text x="1136" y="370" text-anchor="end" fill="#8b949e" font-size="18">每个结果都能回到原文核查</text>
   </g>
 </svg>
