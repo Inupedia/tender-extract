@@ -6,14 +6,12 @@
 
 规则走快路径 · 大模型只处理不确定项 · 每个结果都能回到原文
 
-[English](README_EN.md) · 中文
-
 `PDF` · `DOCX` · `Markdown` · `TXT` · `CLI` · `HTTP API` · `Docker` · `Python 3.12+`
 
 </div>
 
 <p align="center">
-  <img src="./assets/acceptance-benchmark.svg" width="100%" alt="tender-extract 真实文档验收：13 份真实 PDF、911 页、26.31 秒、34.62 页每秒、14/14 语义校验通过、0 失败">
+  <img src="./assets/acceptance-benchmark.svg" width="100%" alt="tender-extract 真实文档验收：13 份真实 PDF、911 页、26.31 秒、34.62 页每秒、运行失败文档 0">
 </p>
 
 ## 先看它能得到什么
@@ -259,8 +257,7 @@ uv run tender-extract eval eval/gold.jsonl --fail-under 0.95
 | 页数 | **911 页** |
 | 总耗时 | **26.31 秒** |
 | 吞吐 | **34.62 页/秒** |
-| 语义校验 | **14 / 14** |
-| 运行失败 | **0** |
+| 运行失败文档 | **0** |
 
 > 速度来自 GitHub Actions。硬件、OCR、存储和 PDF 版式都会影响实际吞吐。
 
@@ -280,6 +277,6 @@ uv run python scripts/acceptance_corpus.py \
 - [人工复核](docs/human-review.md)
 - [质量评测](docs/evaluation.md)
 
-## License
+## 许可证
 
 MIT
