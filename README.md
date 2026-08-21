@@ -1,32 +1,76 @@
-# tender-extract · 中文标书结构化提取
+<div align="center">
 
-[English](README_EN.md) | 中文
+# tender-extract
 
-> **把几十到几百页的采购 / 招投标文档，快速变成可核查的结构化数据。**
-> 规则负责快，大模型只处理不确定项；结果不仅有值，还能回到原文页码和位置核查。
+**面向中文采购 / 招投标文档的结构化抽取工具。**
 
-![真实招投标文档验收结果](assets/acceptance-benchmark.svg)
+规则与结构抽取优先，低置信字段可选 LLM 复核；输出保留页码、原文与 PDF 坐标证据。
 
-## 为什么用它
+<p>
+  <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/FastAPI-HTTP_API-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI HTTP API">
+  <img src="https://img.shields.io/badge/Docker-GHCR-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker GHCR">
+  <img src="https://img.shields.io/badge/GitHub_Actions-tested-2088FF?style=flat-square&logo=githubactions&logoColor=white" alt="GitHub Actions tested">
+  <img src="https://img.shields.io/badge/Formats-PDF%20%7C%20DOCX%20%7C%20Markdown%20%7C%20TXT-57606A?style=flat-square" alt="PDF DOCX Markdown TXT">
+</p>
 
-- ⚡ **快**：一套 **13 份、911 页**的真实采购 / 招投标文档验收集，不启用大模型时实测 **26.31 秒，34.62 页/秒**。
-- 🎯 **结果可靠**：项目名称、编号、采购人、金额、日期、联系人、人员、证书等字段都带置信度。
-- 🔎 **能回原文**：PDF 可保留 **文件、页码、原文片段和坐标**，方便点击定位和高亮。
-- 🧠 **大模型按需使用**：只把低置信、冲突或缺失字段交给大模型，避免整本 PDF 全量调用。
-- 📦 **一个项目可以多份文件一起处理**：招标文件、补遗、澄清、多个投标人的文件统一建模，同时保留版本关系和投标人隔离。
-- ✅ **能持续变准**：人工复核结果可以回流成标注数据，并通过 F1 评测和持续集成防止回归。
+</div>
 
-## 最省事：直接启动 HTTP 服务
+<p align="center">
+  <img src="./assets/acceptance-benchmark.svg" width="100%" alt="tender-extract 真实文档验收：13 份真实 PDF、911 页、26.31 秒、34.62 页每秒、运行失败文档 0">
+</p>
 
-不需要先配 Python 环境，直接拉取服务镜像：
+## 先看它能得到什么
+
+仓库里的 [`examples/example.pdf`](examples/example.pdf) 是一份 10 页政府采购文件。当前流水线可以从中得到类似下面的结构化结果：
+
+```text
+项目名称    合肥市公安局瑶海分局雪亮工程支网一期、二期、三期运维服务采购项目
+项目编号    2024BFFFZ01583
+采购人      合肥市公安局瑶海分局
+金额        437.677万元
+日期        2024年7月1日17时30分
+联系电话    055166223642
+```
+
+它不是简单的 `key: value`。字段可以同时保留来源证据：
+
+```json
+{
+  "project_number": {
+    "primary_value": "2024BFFFZ01583",
+    "confidence": 0.99,
+    "values": [
+      {
+        "location": {
+          "document_id": "example.pdf",
+          "page": 1,
+          "source_text": "项目编号：2024BFFFZ01583"
+        }
+      }
+    ]
+  }
+}
+```
+
+对于能够可靠定位的 PDF 文本，还可以保留页面坐标，因此上层系统可以继续实现：
+
+```text
+字段 → 来源文件 → 页码 → 原文片段 → PDF 坐标 / 高亮
+```
+
+## 最快开始：Docker
+
+直接使用最新发布镜像，不需要先准备 Python 环境：
 
 ```bash
-docker pull ghcr.io/inupedia/tender-extract-server:0.1.0
+IMAGE=ghcr.io/inupedia/tender-extract-server:latest
 
+docker pull "$IMAGE"
 docker run --rm \
   -p 8000:8000 \
   -v tender-extract-cache:/data/cache \
-  ghcr.io/inupedia/tender-extract-server:0.1.0
+  "$IMAGE"
 ```
 
 上传一份 PDF：
@@ -37,40 +81,102 @@ curl -s \
   "http://localhost:8000/v1/extract?llm_provider=none"
 ```
 
-接口文档启动后直接打开 `http://localhost:8000/docs`。
+启动后可直接打开 `http://localhost:8000/docs` 查看 OpenAPI 文档。
 
-服务提供：
+> `latest` 适合快速体验和跟随最新正式版本。生产环境需要可复现部署时，建议固定到 `ghcr.io/inupedia/tender-extract-server:<version>`。Git tag `vX.Y.Z` 会发布 Docker tag `:X.Y.Z`，并同步更新 `:latest`。
+
+[查看 GHCR 镜像版本](https://github.com/Inupedia/tender-extract/pkgs/container/tender-extract-server)
+
+## 抽取流程
+
+```text
+PDF / DOCX / Markdown / TXT
+            │
+            ▼
+      文档解析与分块
+            │
+            ▼
+      规则 / 结构抽取
+        │           │
+   高置信直接输出   低置信 / 冲突 / 缺失
+        │           │
+        │           ▼
+        │        LLM 复核
+        │           │
+        └─────┬─────┘
+              ▼
+        合并 + 证据定位
+              │
+              ▼
+        结构化 JSON
+```
+
+默认先用规则与结构化方法完成可确定字段；只有低置信、冲突或缺失字段才进入可选的 LLM 复核流程。
+
+## 核心能力
+
+| 能力 | 做什么 |
+|---|---|
+| **混合抽取** | 规则、词典、NER 与可选 LLM 复核组合使用 |
+| **证据定位** | 保留文件、页码、原文片段，PDF 可进一步保留 bbox |
+| **项目级多文件** | 招标文件、补遗、澄清、多个投标人文件统一处理，同时保留版本与投标人边界 |
+| **人工复核** | 接受、修改、驳回低置信结果，并回流为标注数据 |
+| **质量评测** | Precision / Recall / F1 与 CI 质量门禁 |
+| **多种入口** | Python CLI、HTTP API、Docker / GHCR |
+
+### 当前支持
+
+| 项目 | 支持情况 |
+|---|---|
+| 文档格式 | PDF、DOCX、Markdown、TXT |
+| 扫描件 | 可选 OCR；轻量 Server 镜像默认不内置 PaddleOCR |
+| LLM | SiliconFlow、OpenAI、DeepSeek、通义千问、Claude、Gemini、Ollama、OpenAI-compatible |
+| 隐私 | 默认不返回敏感个人信息；HTTP 服务可选 API Key |
+
+## HTTP 服务
 
 ```text
 GET  /healthz      健康检查
 GET  /v1/info      版本与能力
-POST /v1/extract   上传 PDF / DOCX / Markdown / TXT 并返回结构化结果
+POST /v1/extract   上传文档并返回结构化结果
 ```
 
-默认不返回敏感个人信息。需要给服务加访问密钥时：
+<details>
+<summary><strong>给服务增加 API Key</strong></summary>
 
 ```bash
+IMAGE=ghcr.io/inupedia/tender-extract-server:latest
+
 docker run --rm -p 8000:8000 \
   -e TENDER_SERVER_API_KEY=your-secret \
-  ghcr.io/inupedia/tender-extract-server:0.1.0
+  "$IMAGE"
 ```
 
-调用时增加 `X-API-Key` 请求头即可。
+调用时增加：
 
-需要大模型时把对应密钥传入容器，例如 SiliconFlow：
+```text
+X-API-Key: your-secret
+```
+
+</details>
+
+<details>
+<summary><strong>在容器中启用 SiliconFlow</strong></summary>
 
 ```bash
+IMAGE=ghcr.io/inupedia/tender-extract-server:latest
+
 docker run --rm -p 8000:8000 \
   -e SILICONFLOW_API_KEY=your-key \
   -e TENDER_SERVER_LLM_PROVIDER=siliconflow \
   -e TENDER_SERVER_LLM_MODEL=Qwen/Qwen3-8B \
   -v tender-extract-cache:/data/cache \
-  ghcr.io/inupedia/tender-extract-server:0.1.0
+  "$IMAGE"
 ```
 
-镜像只在创建版本标签时发布：例如 Git tag `v0.1.0` 会发布 `:0.1.0`，并同步更新 `:latest`。普通提交到 `main` 不会发布镜像。
+</details>
 
-## 本地命令行
+## 本地 CLI
 
 要求 Python **3.12+**。
 
@@ -82,110 +188,17 @@ uv sync --extra pdf
 uv run tender-extract extract examples/example.pdf --out out
 ```
 
-处理完成后得到：
-
-```text
-out/example.pdf.json
-```
-
-批量处理目录也一样简单：
+批量处理目录：
 
 ```bash
 uv run tender-extract extract ./documents --pattern "*.pdf" --out out
 ```
 
-## 实际会得到什么
+## LLM 复核（可选）
 
-仓库中的 `examples/example.pdf` 是这套验收集中的一份 10 页政府采购文件，当前可以稳定提取：
+SiliconFlow `Qwen/Qwen3-8B` 已完成真实接口验收：冷启动测试 **4/4 网络调用成功**；同一文档第二次运行 **4 次全部命中缓存、0 次新增网络调用**。当前这组 live Gold acceptance case 的 **Micro F1 / Macro F1 均为 1.000**。
 
-```text
-项目名称    合肥市公安局瑶海分局雪亮工程支网一期、二期、三期运维服务采购项目
-项目编号    2024BFFFZ01583
-采购人      合肥市公安局瑶海分局
-金额        437.677万元
-日期        2024年7月1日17时30分
-联系电话    055166223642
-```
-
-输出不是简单的 `key: value`。例如项目名称会同时保留证据位置：
-
-```json
-{
-  "project_name": {
-    "primary_value": "合肥市公安局瑶海分局雪亮工程支网一期、二期、三期运维服务采购项目",
-    "confidence": 0.99,
-    "values": [
-      {
-        "location": {
-          "document_id": "example.pdf",
-          "page": 1,
-          "source_text": "合肥市公安局瑶海分局雪亮工程支网一期、二期、三期运维服务采购项目"
-        }
-      }
-    ]
-  }
-}
-```
-
-PDF 能可靠定位时还会返回真实坐标，因此上层系统可以继续实现：
-
-**字段 → 来源文件 → 页码 → 原文位置 → PDF 高亮**
-
-## 真实文档验收
-
-`examples/` 本身就是一套完整的真实采购 / 招投标 PDF 验收集，覆盖 **安徽、北京、陕西、河南、上海等地区，共 13 份、911 页**。整套文档统一用于验证解析、字段抽取和证据定位。
-
-| 实测指标 | 结果 |
-|---|---:|
-| 文档数量 | **13 份** |
-| 总页数 | **911 页** |
-| 总耗时 | **26.31 秒** |
-| 处理速度 | **34.62 页/秒** |
-| 字段语义校验 | **14 / 14 通过** |
-| 运行失败 | **0** |
-
-> 上述速度来自 GitHub Actions，且**不启用大模型**。不同机器、PDF 版式和 OCR 情况会影响速度。
-
-文件来源、页数和 SHA256 记录在 [`examples/public-corpus.lock.json`](examples/public-corpus.lock.json)，正常测试直接使用仓库内文件，不依赖外部网站在线状态。
-
-复现验收：
-
-```bash
-uv run python scripts/acceptance_corpus.py \
-  --examples examples \
-  --min-pdfs 13 \
-  --report artifacts/real-pdf-acceptance.json
-```
-
-## 为什么不是“整本 PDF 全丢给大模型”
-
-```text
-PDF / DOCX / Markdown / TXT
-            │
-            ▼
-      文档解析与分块
-            │
-            ▼
-       规则与结构抽取
-        │           │
-   高置信直接输出   低置信 / 冲突 / 缺失
-        │           │
-        │           ▼
-        │        大模型复核
-        │           │
-        └─────┬─────┘
-              ▼
-        合并 + 证据定位
-              │
-              ▼
-        结构化 JSON
-```
-
-这样确定字段不用等待模型，也不会产生额外调用成本；难字段仍然可以交给模型理解。
-
-SiliconFlow 已使用真实 `Qwen/Qwen3-8B` 接口完成验收：**4/4 网络调用成功**，同一文档第二次运行 **4 次全部命中缓存、0 次新增网络调用**，对应标注集的 **微平均 F1 / 宏平均 F1 均为 1.000**。外部模型耗时受网络和服务端排队影响，因此不与上面的本地处理速度混在一起计算。
-
-启用 SiliconFlow：
+> 这里的 F1 是当前验收样本结果，不代表所有招投标文档上的通用准确率。
 
 ```bash
 export SILICONFLOW_API_KEY=your-key
@@ -196,15 +209,15 @@ uv run tender-extract extract examples/example.pdf \
   --out out
 ```
 
-也支持 OpenAI、DeepSeek、通义千问、Claude、Gemini、Ollama 以及其他 OpenAI 兼容接口：
+查看可用 provider：
 
 ```bash
 uv run tender-extract providers
 ```
 
-## 一个项目有很多文件，也可以一起处理
+## 一个项目有很多文件
 
-现实项目通常同时包含招标文件、补遗、澄清和多个投标人的文件。`tender-package` 可以把它们作为**一个项目**处理，并管理版本、替代关系和投标人边界。
+真实项目经常不只有一份 PDF：
 
 ```text
 某项目/
@@ -215,18 +228,18 @@ uv run tender-extract providers
 └── B公司投标文件.pdf
 ```
 
+`tender-package` 可以把它们作为一个项目处理，并管理版本替代关系与投标人隔离：
+
 ```bash
 uv run tender-package validate package.yaml
 uv run tender-package extract package.yaml --out out/package.json
 ```
 
-补遗中的新值可以覆盖对应旧值，但历史来源仍然保留；A 公司的字段也不会覆盖 B 公司。
+补遗中的新值可以覆盖对应旧值，但历史证据仍然保留；A 公司的字段也不会覆盖 B 公司。
 
 详见 [`docs/tender-package.md`](docs/tender-package.md)。
 
-## 人工复核和质量评测
-
-低置信、冲突或模型恢复字段可以进入人工复核队列，修改结果直接回流成标注集：
+## 人工复核与质量闭环
 
 ```bash
 uv run tender-review run examples/example.pdf --queue .review/queue.jsonl
@@ -234,29 +247,36 @@ uv run tender-review export --queue .review/queue.jsonl --out eval/gold-reviewed
 uv run tender-extract eval eval/gold-reviewed.jsonl
 ```
 
-持续集成也可以直接设置最低 F1：
+CI 也可以直接设置最低 F1：
 
 ```bash
 uv run tender-extract eval eval/gold.jsonl --fail-under 0.95
 ```
 
-详见 [`docs/human-review.md`](docs/human-review.md) 和 [`docs/evaluation.md`](docs/evaluation.md)。
+## 真实文档验收如何复现
 
-## 支持能力
+仓库提交了一套真实采购 / 招投标 PDF 验收集，覆盖安徽、北京、陕西、河南、上海等地区，共 **13 份 / 911 页**。当前 GitHub Actions 基准在关闭 LLM 时记录为：
 
-| 能力 | 当前支持 |
-|---|---|
-| 使用方式 | Python 命令行、HTTP 服务、Docker / GHCR 镜像 |
-| 文档格式 | PDF、DOCX、Markdown、TXT |
-| 扫描件 | 可选 OCR；轻量服务镜像默认不内置 PaddleOCR |
-| 字段抽取 | 规则、词典、命名实体识别、大模型复核 |
-| 证据定位 | 文件、页码、章节、行号、原文、PDF 坐标 |
-| 项目级处理 | 多文件、版本、补遗/澄清、投标人隔离 |
-| 人工复核 | 接受、修改、驳回、导出标注集 |
-| 质量评测 | 精确率、召回率、F1、持续集成质量门禁 |
-| 隐私 | 默认脱敏敏感个人信息；服务可选 API Key |
+| 指标 | 结果 |
+|---|---:|
+| 文档 | **13 份** |
+| 页数 | **911 页** |
+| 总耗时 | **26.31 秒** |
+| 吞吐 | **34.62 页/秒** |
+| 运行失败文档 | **0** |
 
-更多细节：
+> 速度来自 GitHub Actions。硬件、OCR、存储和 PDF 版式都会影响实际吞吐。
+
+来源 URL、页数与 SHA256 记录在 [`examples/public-corpus.lock.json`](examples/public-corpus.lock.json)。复现：
+
+```bash
+uv run python scripts/acceptance_corpus.py \
+  --examples examples \
+  --min-pdfs 13 \
+  --report artifacts/real-pdf-acceptance.json
+```
+
+## 文档
 
 - [证据定位](docs/evidence.md)
 - [项目级多文件处理](docs/tender-package.md)

@@ -1,43 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="390" viewBox="0 0 1200 390" role="img" aria-labelledby="title desc">
-  <title id="title">tender-extract 真实文档验收结果</title>
-  <desc id="desc">13份真实招投标与采购PDF，共911页，26.31秒完成，平均34.62页每秒，14项语义校验全部通过。</desc>
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0b1020"/>
-      <stop offset="1" stop-color="#18233e"/>
-    </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#54d6a0"/>
-      <stop offset="1" stop-color="#66a3ff"/>
-    </linearGradient>
-  </defs>
-  <rect width="1200" height="390" rx="28" fill="url(#bg)"/>
-  <text x="64" y="72" fill="#f4f7ff" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif" font-size="34" font-weight="700">真实招投标文档验收</text>
-  <text x="64" y="108" fill="#9eacc8" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif" font-size="18">仓库内 13 份真实采购 / 招投标 PDF · GitHub Actions 实测 · 不启用大模型</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">tender-extract 真实文档验收</title>
+  <desc id="desc">13 份真实采购与招投标 PDF，共 911 页；GitHub Actions 中关闭 LLM 时总耗时 26.31 秒，平均 34.62 页每秒，运行失败文档为 0。</desc>
 
-  <g font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif">
-    <rect x="64" y="148" width="202" height="132" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
-    <text x="88" y="194" fill="#9eacc8" font-size="16">真实文档</text>
-    <text x="88" y="244" fill="#f4f7ff" font-size="40" font-weight="700">13 份</text>
+  <rect x="0.5" y="0.5" width="1199" height="359" rx="16" fill="#f6f8fa" stroke="#d0d7de"/>
+  <rect x="0" y="0" width="6" height="360" rx="3" fill="#0969da"/>
 
-    <rect x="282" y="148" width="202" height="132" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
-    <text x="306" y="194" fill="#9eacc8" font-size="16">总页数</text>
-    <text x="306" y="244" fill="#f4f7ff" font-size="40" font-weight="700">911 页</text>
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
+    <text x="56" y="58" fill="#57606a" font-size="18" font-weight="600">真实文档验收</text>
+    <text x="56" y="112" fill="#24292f" font-size="42" font-weight="700">13 份真实招投标 PDF</text>
+    <text x="56" y="154" fill="#57606a" font-size="22">共 911 页 · GitHub Actions 实测 · 关闭 LLM</text>
 
-    <rect x="500" y="148" width="202" height="132" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
-    <text x="524" y="194" fill="#9eacc8" font-size="16">总耗时</text>
-    <text x="524" y="244" fill="#f4f7ff" font-size="40" font-weight="700">26.31 秒</text>
+    <line x1="650" y1="42" x2="650" y2="258" stroke="#d8dee4" stroke-width="1"/>
 
-    <rect x="718" y="148" width="202" height="132" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
-    <text x="742" y="194" fill="#9eacc8" font-size="16">处理速度</text>
-    <text x="742" y="244" fill="#54d6a0" font-size="40" font-weight="700">34.62</text>
-    <text x="742" y="267" fill="#9eacc8" font-size="15">页 / 秒</text>
+    <g font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace">
+      <text x="704" y="66" fill="#57606a" font-size="17">总耗时</text>
+      <text x="704" y="112" fill="#24292f" font-size="36" font-weight="700">26.31 秒</text>
 
-    <rect x="936" y="148" width="200" height="132" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.10"/>
-    <text x="960" y="194" fill="#9eacc8" font-size="16">语义校验</text>
-    <text x="960" y="244" fill="#f4f7ff" font-size="40" font-weight="700">14 / 14</text>
+      <text x="936" y="66" fill="#57606a" font-size="17">处理速度</text>
+      <text x="936" y="112" fill="#24292f" font-size="36" font-weight="700">34.62</text>
+      <text x="936" y="140" fill="#57606a" font-size="17">页 / 秒</text>
+
+      <line x1="704" y1="170" x2="1138" y2="170" stroke="#d8dee4" stroke-width="1"/>
+
+      <text x="704" y="208" fill="#57606a" font-size="17">运行失败文档</text>
+      <text x="704" y="250" fill="#1a7f37" font-size="34" font-weight="700">0 份</text>
+    </g>
+
+    <line x1="56" y1="288" x2="1138" y2="288" stroke="#d8dee4" stroke-width="1"/>
+
+    <g font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="17">
+      <text x="56" y="326" fill="#57606a">字段</text>
+      <text x="104" y="326" fill="#8c959f">→</text>
+      <text x="135" y="326" fill="#24292f">来源文件</text>
+      <text x="221" y="326" fill="#8c959f">→</text>
+      <text x="252" y="326" fill="#24292f">页码</text>
+      <text x="299" y="326" fill="#8c959f">→</text>
+      <text x="330" y="326" fill="#24292f">原文片段</text>
+      <text x="416" y="326" fill="#8c959f">→</text>
+      <text x="447" y="326" fill="#24292f">PDF 坐标 / 高亮</text>
+    </g>
+
+    <text x="1138" y="326" text-anchor="end" fill="#57606a" font-size="17">输出保留可核查证据</text>
   </g>
-
-  <rect x="64" y="318" width="1072" height="2" fill="url(#accent)" opacity="0.75"/>
-  <text x="64" y="355" fill="#b9c5da" font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif" font-size="17">规则优先，难题再交给大模型；每个结果都能回到原文核查。</text>
 </svg>
