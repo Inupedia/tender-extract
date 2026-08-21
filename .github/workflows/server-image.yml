@@ -16,7 +16,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/tender-extract-server
+  IMAGE_NAME: inupedia/tender-extract-server
 
 jobs:
   test-image:
@@ -96,6 +96,9 @@ jobs:
           assert result['fields']['tenderer']['primary_value'] == '合肥市公安局瑶海分局'
           print('container smoke test passed')
           PY
+
+          docker tag tender-extract-server:test \
+            "${REGISTRY}/${IMAGE_NAME}:${{ steps.version.outputs.version }}"
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
