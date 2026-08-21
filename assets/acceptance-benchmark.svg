@@ -23,12 +23,12 @@
       <line x1="735" y1="-24" x2="735" y2="76" stroke="#30343a" stroke-width="1"/>
 
       <text x="785" y="0" fill="#8b949e" font-size="18">运行失败文档</text>
-      <text x="785" y="54" fill="#62d69a" font-size="42" font-weight="750">0</text>
+      <text x="785" y="54" fill="#62d69a" font-size="42" font-weight="750">0 份</text>
     </g>
 
     <line x1="64" y1="330" x2="1136" y2="330" stroke="#30343a" stroke-width="1"/>
 
-    <text x="64" y="370" fill="#8b949e" font-size="18" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace">字段</text>
+    <text x="64" y="370" fill="#8b949e" font-size="18">字段</text>
     <text x="111" y="370" fill="#4b5159" font-size="18">→</text>
     <text x="142" y="370" fill="#c8cdd3" font-size="18">来源文件</text>
     <text x="228" y="370" fill="#4b5159" font-size="18">→</text>
