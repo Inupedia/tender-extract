@@ -1,6 +1,7 @@
-"""主流 LLM 厂商预设。
+"""LLM provider registry.
 
-绝大多数厂商提供 OpenAI 兼容 Chat Completions。Anthropic 走原生 Messages API。
+Most hosted vendors expose an OpenAI-compatible Chat Completions API, so they share
+one adapter. Native adapters are kept only where the protocol/authentication differs.
 """
 from __future__ import annotations
 
@@ -21,36 +22,41 @@ class ProviderSpec:
     base_url: str = ""
     base_url_env: str = ""
     notes: str = ""
+    aliases: tuple[str, ...] = ()
+    api_key_env_aliases: tuple[str, ...] = ()
+    auth_required: bool = True
+    local: bool = False
 
 
 PROVIDERS: dict[str, ProviderSpec] = {
-    "none": ProviderSpec("none", "不使用 LLM", "none", ""),
+    "none": ProviderSpec(
+        "none", "不使用 LLM", "none", "", auth_required=False, local=True,
+    ),
     "openai": ProviderSpec(
         "openai", "OpenAI", "openai_compat", "gpt-4o-mini",
         api_key_env="OPENAI_API_KEY",
         base_url="https://api.openai.com/v1",
+        aliases=("chatgpt", "gpt"),
     ),
     "azure": ProviderSpec(
         "azure", "Azure OpenAI", "azure", "gpt-4o-mini",
         api_key_env="AZURE_OPENAI_API_KEY",
         base_url_env="AZURE_OPENAI_ENDPOINT",
-        notes="模型名填部署名；另支持 AZURE_OPENAI_API_VERSION",
+        notes="模型名填写 Azure deployment name；可用 AZURE_OPENAI_API_VERSION 覆盖 API 版本",
+        aliases=("azure_openai", "azure-openai"),
     ),
     "anthropic": ProviderSpec(
         "anthropic", "Anthropic Claude", "anthropic", "claude-sonnet-4-5",
         api_key_env="ANTHROPIC_API_KEY",
         base_url="https://api.anthropic.com",
+        aliases=("claude",),
     ),
     "gemini": ProviderSpec(
-        "gemini", "Google Gemini", "openai_compat", "gemini-2.0-flash",
+        "gemini", "Google Gemini", "openai_compat", "gemini-3.8-flash",
         api_key_env="GEMINI_API_KEY",
+        api_key_env_aliases=("GOOGLE_API_KEY",),
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        notes="也识别 GOOGLE_API_KEY",
-    ),
-    "ollama": ProviderSpec(
-        "ollama", "Ollama（本地）", "ollama", "qwen2.5:14b",
-        base_url="http://127.0.0.1:11434",
-        base_url_env="OLLAMA_BASE_URL",
+        aliases=("google",),
     ),
     "deepseek": ProviderSpec(
         "deepseek", "DeepSeek", "openai_compat", "deepseek-chat",
@@ -58,44 +64,28 @@ PROVIDERS: dict[str, ProviderSpec] = {
         base_url="https://api.deepseek.com",
     ),
     "qwen": ProviderSpec(
-        "qwen", "阿里云通义千问", "openai_compat", "qwen-plus",
+        "qwen", "阿里云通义千问 / DashScope", "openai_compat", "qwen-plus",
         api_key_env="DASHSCOPE_API_KEY",
         base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    ),
-    "dashscope": ProviderSpec(
-        "dashscope", "阿里云 DashScope", "openai_compat", "qwen-plus",
-        api_key_env="DASHSCOPE_API_KEY",
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        aliases=("dashscope", "tongyi", "qianwen"),
     ),
     "moonshot": ProviderSpec(
         "moonshot", "Moonshot / Kimi", "openai_compat", "moonshot-v1-auto",
         api_key_env="MOONSHOT_API_KEY",
         base_url="https://api.moonshot.cn/v1",
-    ),
-    "kimi": ProviderSpec(
-        "kimi", "Kimi", "openai_compat", "moonshot-v1-auto",
-        api_key_env="MOONSHOT_API_KEY",
-        base_url="https://api.moonshot.cn/v1",
+        aliases=("kimi",),
     ),
     "zhipu": ProviderSpec(
         "zhipu", "智谱 GLM", "openai_compat", "glm-4-flash",
         api_key_env="ZHIPUAI_API_KEY",
         base_url="https://open.bigmodel.cn/api/paas/v4",
-    ),
-    "glm": ProviderSpec(
-        "glm", "智谱 GLM", "openai_compat", "glm-4-flash",
-        api_key_env="ZHIPUAI_API_KEY",
-        base_url="https://open.bigmodel.cn/api/paas/v4",
+        aliases=("glm", "glm4"),
     ),
     "doubao": ProviderSpec(
         "doubao", "火山方舟 Doubao", "openai_compat", "doubao-pro-32k",
         api_key_env="ARK_API_KEY",
         base_url="https://ark.cn-beijing.volces.com/api/v3",
-    ),
-    "volcengine": ProviderSpec(
-        "volcengine", "火山方舟", "openai_compat", "doubao-pro-32k",
-        api_key_env="ARK_API_KEY",
-        base_url="https://ark.cn-beijing.volces.com/api/v3",
+        aliases=("ark", "volcengine"),
     ),
     "hunyuan": ProviderSpec(
         "hunyuan", "腾讯混元", "openai_compat", "hunyuan-turbo",
@@ -116,11 +106,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
         "yi", "零一万物", "openai_compat", "yi-lightning",
         api_key_env="YI_API_KEY",
         base_url="https://api.lingyiwanwu.com/v1",
-    ),
-    "lingyi": ProviderSpec(
-        "lingyi", "零一万物", "openai_compat", "yi-lightning",
-        api_key_env="YI_API_KEY",
-        base_url="https://api.lingyiwanwu.com/v1",
+        aliases=("lingyi",),
     ),
     "stepfun": ProviderSpec(
         "stepfun", "阶跃星辰", "openai_compat", "step-2-mini",
@@ -128,7 +114,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
         base_url="https://api.stepfun.com/v1",
     ),
     "siliconflow": ProviderSpec(
-        "siliconflow", "硅基流动", "openai_compat", "Qwen/Qwen2.5-7B-Instruct",
+        "siliconflow", "硅基流动", "openai_compat", "Qwen/Qwen3-8B",
         api_key_env="SILICONFLOW_API_KEY",
         base_url="https://api.siliconflow.cn/v1",
     ),
@@ -156,11 +142,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
         "xai", "xAI Grok", "openai_compat", "grok-2-latest",
         api_key_env="XAI_API_KEY",
         base_url="https://api.x.ai/v1",
-    ),
-    "grok": ProviderSpec(
-        "grok", "xAI Grok", "openai_compat", "grok-2-latest",
-        api_key_env="XAI_API_KEY",
-        base_url="https://api.x.ai/v1",
+        aliases=("grok",),
     ),
     "fireworks": ProviderSpec(
         "fireworks", "Fireworks", "openai_compat", "accounts/fireworks/models/llama-v3p3-70b-instruct",
@@ -172,29 +154,56 @@ PROVIDERS: dict[str, ProviderSpec] = {
         api_key_env="PERPLEXITY_API_KEY",
         base_url="https://api.perplexity.ai",
     ),
+    "nvidia": ProviderSpec(
+        "nvidia", "NVIDIA NIM", "openai_compat", "meta/llama-3.3-70b-instruct",
+        api_key_env="NVIDIA_API_KEY",
+        base_url="https://integrate.api.nvidia.com/v1",
+        aliases=("nim", "nvidia_nim"),
+    ),
+    "ollama": ProviderSpec(
+        "ollama", "Ollama（本地）", "ollama", "qwen2.5:14b",
+        base_url="http://127.0.0.1:11434",
+        base_url_env="OLLAMA_BASE_URL",
+        aliases=("local",),
+        auth_required=False,
+        local=True,
+    ),
+    "vllm": ProviderSpec(
+        "vllm", "vLLM（本地 / 自托管）", "openai_compat", "",
+        base_url="http://127.0.0.1:8000/v1",
+        base_url_env="VLLM_BASE_URL",
+        auth_required=False,
+        local=True,
+    ),
+    "lmstudio": ProviderSpec(
+        "lmstudio", "LM Studio（本地）", "openai_compat", "",
+        base_url="http://127.0.0.1:1234/v1",
+        base_url_env="LMSTUDIO_BASE_URL",
+        aliases=("lm-studio", "lm_studio"),
+        auth_required=False,
+        local=True,
+    ),
     "openai_compat": ProviderSpec(
-        "openai_compat", "任意 OpenAI 兼容接口", "openai_compat", "gpt-4o-mini",
+        "openai_compat", "任意 OpenAI-compatible 接口", "openai_compat", "",
         api_key_env="LLM_API_KEY",
         base_url_env="LLM_BASE_URL",
-        notes="需同时提供 --base-url 或 LLM_BASE_URL",
+        notes="通过 --base-url / LLM_BASE_URL 指定 endpoint；适用于 vLLM、TGI、代理网关和其他兼容服务",
+        aliases=("openai-compatible", "openai_compatible", "custom"),
+        auth_required=False,
     ),
+}
+
+
+ALIASES: dict[str, str] = {
+    alias: spec.id
+    for spec in PROVIDERS.values()
+    for alias in spec.aliases
 }
 
 
 def get_provider(provider_id: str) -> ProviderSpec:
     key = (provider_id or "none").lower().strip()
-    aliases = {
-        "claude": "anthropic",
-        "google": "gemini",
-        "chatgpt": "openai",
-        "gpt": "openai",
-        "tongyi": "qwen",
-        "qianwen": "qwen",
-        "glm4": "zhipu",
-        "ark": "doubao",
-        "local": "ollama",
-    }
-    key = aliases.get(key, key)
+    key = ALIASES.get(key, key)
     if key not in PROVIDERS:
         known = ", ".join(sorted(PROVIDERS))
         raise ValueError(f"未知 LLM 提供商: {provider_id}。可选: {known}")
@@ -202,13 +211,22 @@ def get_provider(provider_id: str) -> ProviderSpec:
 
 
 def list_providers() -> list[ProviderSpec]:
-    seen: set[str] = set()
-    result: list[ProviderSpec] = []
-    for spec in PROVIDERS.values():
-        if spec.id in {"dashscope", "kimi", "glm", "volcengine", "lingyi", "grok"}:
-            continue
-        if spec.name in seen:
-            continue
-        seen.add(spec.name)
-        result.append(spec)
-    return result
+    return list(PROVIDERS.values())
+
+
+def provider_public_dict(spec: ProviderSpec) -> dict[str, object]:
+    """Serialize non-secret provider metadata for CLI/HTTP discovery."""
+
+    return {
+        "id": spec.id,
+        "name": spec.name,
+        "kind": spec.kind,
+        "default_model": spec.default_model or None,
+        "api_key_env": spec.api_key_env or None,
+        "base_url": spec.base_url or None,
+        "base_url_env": spec.base_url_env or None,
+        "aliases": list(spec.aliases),
+        "auth_required": spec.auth_required,
+        "local": spec.local,
+        "notes": spec.notes or None,
+    }

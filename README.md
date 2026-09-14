@@ -130,15 +130,16 @@ PDF / DOCX / Markdown / TXT
 |---|---|
 | 文档格式 | PDF、DOCX、Markdown、TXT |
 | 扫描件 | 可选 OCR；轻量 Server 镜像默认不内置 PaddleOCR |
-| LLM | SiliconFlow、OpenAI、DeepSeek、通义千问、Claude、Gemini、Ollama、OpenAI-compatible |
+| LLM | OpenAI、Azure OpenAI、Claude、Gemini、DeepSeek、通义千问、Kimi、GLM、Doubao、SiliconFlow、OpenRouter、Groq、Together、Mistral、xAI、NVIDIA NIM、Ollama、vLLM、LM Studio，以及任意 OpenAI-compatible endpoint |
 | 隐私 | 默认不返回敏感个人信息；HTTP 服务可选 API Key |
 
 ## HTTP 服务
 
 ```text
-GET  /healthz      健康检查
-GET  /v1/info      版本与能力
-POST /v1/extract   上传文档并返回结构化结果
+GET  /healthz        健康检查
+GET  /v1/info        版本与能力
+GET  /v1/providers   Provider 发现与配置元数据
+POST /v1/extract     上传文档并返回结构化结果
 ```
 
 <details>
@@ -161,18 +162,22 @@ X-API-Key: your-secret
 </details>
 
 <details>
-<summary><strong>在容器中启用 SiliconFlow</strong></summary>
+<summary><strong>在容器中启用 LLM Provider</strong></summary>
+
+以 DeepSeek 为例：
 
 ```bash
 IMAGE=ghcr.io/inupedia/tender-extract-server:latest
 
 docker run --rm -p 8000:8000 \
-  -e SILICONFLOW_API_KEY=your-key \
-  -e TENDER_SERVER_LLM_PROVIDER=siliconflow \
-  -e TENDER_SERVER_LLM_MODEL=Qwen/Qwen3-8B \
+  -e DEEPSEEK_API_KEY=your-key \
+  -e TENDER_SERVER_LLM_PROVIDER=deepseek \
+  -e TENDER_SERVER_LLM_MODEL=deepseek-chat \
   -v tender-extract-cache:/data/cache \
   "$IMAGE"
 ```
+
+SiliconFlow、OpenAI、Gemini、Claude 等 Provider 只需替换 provider/model 与对应环境变量。也可以通过 `X-LLM-API-Key` 为单次 HTTP 请求提供上游模型密钥。
 
 </details>
 
@@ -196,24 +201,38 @@ uv run tender-extract extract ./documents --pattern "*.pdf" --out out
 
 ## LLM 复核（可选）
 
-SiliconFlow `Qwen/Qwen3-8B` 已完成真实接口验收：冷启动测试 **4/4 网络调用成功**；同一文档第二次运行 **4 次全部命中缓存、0 次新增网络调用**。当前这组 live Gold acceptance case 的 **Micro F1 / Macro F1 均为 1.000**。
-
-> 这里的 F1 是当前验收样本结果，不代表所有招投标文档上的通用准确率。
-
-```bash
-export SILICONFLOW_API_KEY=your-key
-
-uv run tender-extract extract examples/example.pdf \
-  --llm siliconflow \
-  --model Qwen/Qwen3-8B \
-  --out out
-```
-
-查看可用 provider：
+LLM Provider 不绑定 SiliconFlow。内置 Registry 覆盖主流云模型、本地运行时和任意 OpenAI-compatible endpoint：
 
 ```bash
 uv run tender-extract providers
 ```
+
+例如 DeepSeek：
+
+```bash
+export DEEPSEEK_API_KEY=your-key
+
+uv run tender-extract extract examples/example.pdf \
+  --llm deepseek \
+  --model deepseek-chat \
+  --out out
+```
+
+任意 OpenAI-compatible 服务：
+
+```bash
+uv run tender-extract extract examples/example.pdf \
+  --llm openai_compat \
+  --base-url http://127.0.0.1:8000/v1 \
+  --model Qwen/Qwen3-8B \
+  --out out
+```
+
+SiliconFlow `Qwen/Qwen3-8B` 已完成真实接口验收：冷启动测试 **4/4 网络调用成功**；同一文档第二次运行 **4 次全部命中缓存、0 次新增网络调用**。当前这组 live Gold acceptance case 的 **Micro F1 / Macro F1 均为 1.000**。
+
+> 这里的 F1 是当前验收样本结果，不代表所有招投标文档上的通用准确率，也不代表其他 Provider 已完成同等 live acceptance。
+
+更完整的 Provider、环境变量、HTTP 和本地模型配置见 [`docs/llm-providers.md`](docs/llm-providers.md)。
 
 ## 一个项目有很多文件
 
@@ -278,6 +297,7 @@ uv run python scripts/acceptance_corpus.py \
 
 ## 文档
 
+- [LLM Provider 配置](docs/llm-providers.md)
 - [证据定位](docs/evidence.md)
 - [项目级多文件处理](docs/tender-package.md)
 - [人工复核](docs/human-review.md)

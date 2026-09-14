@@ -1,13 +1,15 @@
-"""按需 LLM 路由：OpenAI 兼容协议 + Anthropic + Ollama。"""
+"""按需 LLM 路由：OpenAI-compatible + Anthropic + Azure + local runtimes。"""
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import logging
 import os
 import re
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 from .llm_providers import ProviderSpec, get_provider
 from .pii import redact_for_cloud_llm
@@ -21,6 +23,7 @@ class LLMRouter:
         self.config = config
         self.spec: ProviderSpec = get_provider(config.llm_provider)
         self.model = config.llm_model or self.spec.default_model or None
+        self.base_url: Optional[str] = None
         self.debug_mode = config.debug
         self.client: Any = None
         self.cache: dict[str, dict[str, Any]] = {}
@@ -35,6 +38,8 @@ class LLMRouter:
 
     def _env(self, *names: str) -> Optional[str]:
         for name in names:
+            if not name:
+                continue
             value = os.environ.get(name)
             if value:
                 return value
@@ -44,28 +49,43 @@ class LLMRouter:
         if self.spec.kind == "none":
             return
 
-        api_key = self.config.llm_api_key or (
-            self._env(self.spec.api_key_env, "LLM_API_KEY", "OPENAI_API_KEY")
-            if self.spec.api_key_env else None
+        api_key_names = (
+            self.spec.api_key_env,
+            *self.spec.api_key_env_aliases,
+            "LLM_API_KEY",
         )
-        if self.spec.id == "gemini":
-            api_key = self.config.llm_api_key or self._env(
-                "GEMINI_API_KEY", "GOOGLE_API_KEY", "LLM_API_KEY"
-            )
+        api_key = self.config.llm_api_key or self._env(*api_key_names)
 
         base_url = self.config.llm_base_url
         if not base_url and self.spec.base_url_env:
             base_url = self._env(self.spec.base_url_env, "LLM_BASE_URL")
+        elif not base_url:
+            base_url = self._env("LLM_BASE_URL")
         if not base_url:
             base_url = self.spec.base_url or None
+        self.base_url = base_url
+
+        if self.spec.id == "openai_compat" and not base_url:
+            logger.warning("openai_compat 需要 --base-url 或 LLM_BASE_URL")
+            return
+        if not self.model:
+            logger.warning("LLM 提供商 %s 需要显式配置模型名", self.spec.id)
+            return
+        if self.spec.auth_required and not api_key:
+            logger.warning(
+                "LLM 提供商 %s 未配置密钥（环境变量 %s）",
+                self.spec.id,
+                self.spec.api_key_env or "LLM_API_KEY",
+            )
+            return
 
         try:
             if self.spec.kind == "azure":
                 from openai import AzureOpenAI
 
                 endpoint = base_url or self._env("AZURE_OPENAI_ENDPOINT")
-                if not api_key or not endpoint:
-                    logger.warning("Azure OpenAI 需要 AZURE_OPENAI_API_KEY 和 AZURE_OPENAI_ENDPOINT")
+                if not endpoint:
+                    logger.warning("Azure OpenAI 需要 AZURE_OPENAI_ENDPOINT")
                     return
                 self.client = AzureOpenAI(
                     api_key=api_key,
@@ -78,32 +98,40 @@ class LLMRouter:
                 if self.spec.kind == "ollama":
                     ollama_host = (base_url or "http://127.0.0.1:11434").rstrip("/")
                     compat_url = ollama_host if ollama_host.endswith("/v1") else ollama_host + "/v1"
-                    self.client = OpenAI(api_key=api_key or "ollama", base_url=compat_url)
+                    self.base_url = compat_url
+                    self.client = OpenAI(api_key=api_key or "not-required", base_url=compat_url)
                 else:
-                    if not api_key and self.spec.id not in {"openai_compat"}:
-                        logger.warning(
-                            "LLM 提供商 %s 未配置密钥（环境变量 %s）",
-                            self.spec.id,
-                            self.spec.api_key_env,
-                        )
-                        return
-                    kwargs: dict[str, Any] = {}
-                    if api_key:
-                        kwargs["api_key"] = api_key
+                    kwargs: dict[str, Any] = {"api_key": api_key or "not-required"}
                     if base_url:
                         kwargs["base_url"] = base_url
                     self.client = OpenAI(**kwargs)
             elif self.spec.kind == "anthropic":
-                if not api_key:
-                    logger.warning("Anthropic 需要 ANTHROPIC_API_KEY")
-                    return
-                self.client = {"kind": "anthropic", "api_key": api_key, "base_url": base_url}
+                self.client = {
+                    "kind": "anthropic",
+                    "api_key": api_key,
+                    "base_url": base_url,
+                }
         except Exception as exc:
             logger.error("初始化 LLM 客户端失败: %s", exc)
             self.client = None
 
     def is_enabled(self) -> bool:
-        return self.spec.kind != "none" and self.client is not None
+        return self.spec.kind != "none" and self.client is not None and bool(self.model)
+
+    def _is_local_endpoint(self) -> bool:
+        if self.spec.local:
+            return True
+        if not self.base_url:
+            return False
+        try:
+            host = urlparse(self.base_url).hostname
+            if not host:
+                return False
+            if host == "localhost" or host.endswith(".local"):
+                return True
+            return ipaddress.ip_address(host).is_private
+        except ValueError:
+            return False
 
     def should_use_llm(
         self, field: ExtractedField, confidence_threshold: float = 0.7
@@ -146,7 +174,7 @@ class LLMRouter:
         return "\n---\n".join(contexts) if contexts else chunk_text[:1200]
 
     def _prepare_request(self, request: LLMRequest) -> LLMRequest:
-        if not self.config.redact_pii_for_cloud_llm or self.spec.kind == "ollama":
+        if not self.config.redact_pii_for_cloud_llm or self._is_local_endpoint():
             return request
         return request.model_copy(
             update={
@@ -191,8 +219,10 @@ class LLMRouter:
         return self._call_openai_compat(system, prompt)
 
     def _call_openai_compat(self, system: str, prompt: str) -> Optional[str]:
+        if not self.model:
+            raise ValueError(f"LLM provider {self.spec.id} requires an explicit model")
         response = self.client.chat.completions.create(
-            model=self.model or "gpt-4o-mini",
+            model=self.model,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
@@ -206,7 +236,7 @@ class LLMRouter:
         import httpx
 
         base = (self.client["base_url"] or "https://api.anthropic.com").rstrip("/")
-        url = base + "/v1/messages"
+        url = base + ("/messages" if base.endswith("/v1") else "/v1/messages")
         headers = {
             "x-api-key": self.client["api_key"],
             "anthropic-version": "2023-06-01",
