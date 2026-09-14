@@ -2,7 +2,7 @@
 
 The server intentionally stays thin: extraction logic remains in ExtractionPipeline,
 while this module adds upload validation, request-scoped runtime options, optional API
-key protection, and stable HTTP endpoints for container deployment.
+key protection, provider discovery, and stable HTTP endpoints for container deployment.
 """
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from .document_parser import PADDLEOCR_AVAILABLE, PYMUPDF_AVAILABLE, PYTHON_DOCX_AVAILABLE
+from .llm_providers import get_provider, list_providers, provider_public_dict
 from .pipeline import ExtractionPipeline
 from .schema import ProcessingConfig
 
@@ -28,6 +29,8 @@ MAX_UPLOAD_MB = int(os.getenv("TENDER_SERVER_MAX_UPLOAD_MB", "50"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 DEFAULT_LLM_PROVIDER = os.getenv("TENDER_SERVER_LLM_PROVIDER", "none")
 DEFAULT_LLM_MODEL = os.getenv("TENDER_SERVER_LLM_MODEL") or None
+DEFAULT_LLM_BASE_URL = os.getenv("TENDER_SERVER_LLM_BASE_URL") or None
+DEFAULT_LLM_API_KEY = os.getenv("TENDER_SERVER_LLM_API_KEY") or None
 DEFAULT_USE_OCR = os.getenv("TENDER_SERVER_USE_OCR", "false").lower() in {"1", "true", "yes", "on"}
 CACHE_DIR = os.getenv("TENDER_SERVER_CACHE_DIR", "/data/cache")
 API_KEY = os.getenv("TENDER_SERVER_API_KEY") or None
@@ -49,9 +52,30 @@ def _require_api_key(x_api_key: Annotated[str | None, Header()] = None) -> None:
         raise HTTPException(status_code=401, detail="invalid API key")
 
 
+def _resolve_provider(provider_id: str):
+    try:
+        return get_provider(provider_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/healthz", tags=["system"])
 def healthz() -> dict[str, str]:
     return {"status": "ok", "version": SERVER_VERSION}
+
+
+@app.get("/v1/providers", tags=["system"])
+def providers() -> dict[str, object]:
+    """Return provider metadata only; no configured secret values are exposed."""
+
+    return {
+        "providers": [provider_public_dict(spec) for spec in list_providers()],
+        "custom_openai_compatible": {
+            "provider": "openai_compat",
+            "base_url_env": "LLM_BASE_URL",
+            "api_key_env": "LLM_API_KEY",
+        },
+    }
 
 
 @app.get("/v1/info", tags=["system"])
@@ -63,12 +87,14 @@ def info() -> dict[str, object]:
         "default_llm_provider": DEFAULT_LLM_PROVIDER,
         "default_llm_model": DEFAULT_LLM_MODEL,
         "supported_formats": sorted(SUPPORTED_SUFFIXES),
+        "provider_discovery": "/v1/providers",
         "capabilities": {
             "pdf": PYMUPDF_AVAILABLE,
             "docx": PYTHON_DOCX_AVAILABLE,
             "ocr": PADDLEOCR_AVAILABLE,
             "structured_evidence": True,
             "pii_redaction_default": True,
+            "multi_llm_provider": True,
         },
     }
 
@@ -78,6 +104,11 @@ async def extract_document(
     file: Annotated[UploadFile, File(description="PDF / DOCX / TXT / Markdown document")],
     llm_provider: Annotated[str | None, Query(description="Override server default LLM provider")] = None,
     llm_model: Annotated[str | None, Query(description="Override server default model")] = None,
+    llm_base_url: Annotated[str | None, Query(description="Override provider API base URL")] = None,
+    x_llm_api_key: Annotated[
+        str | None,
+        Header(alias="X-LLM-API-Key", description="Request-scoped upstream LLM API key; never returned"),
+    ] = None,
     confidence_threshold: Annotated[float, Query(ge=0.0, le=1.0)] = 0.7,
     include_pii: Annotated[bool, Query(description="Return unmasked PII; default false")] = False,
     use_ocr: Annotated[bool | None, Query(description="Request OCR when OCR dependencies are installed")] = None,
@@ -90,6 +121,7 @@ async def extract_document(
             detail=f"unsupported file type: {suffix or '(none)'}; supported: {', '.join(sorted(SUPPORTED_SUFFIXES))}",
         )
 
+    provider_spec = _resolve_provider(llm_provider or DEFAULT_LLM_PROVIDER)
     temp_path: Path | None = None
     total_bytes = 0
     request_id = uuid.uuid4().hex
@@ -113,8 +145,10 @@ async def extract_document(
             raise HTTPException(status_code=400, detail="empty upload")
 
         config = ProcessingConfig(
-            llm_provider=llm_provider or DEFAULT_LLM_PROVIDER,
+            llm_provider=provider_spec.id,
             llm_model=llm_model or DEFAULT_LLM_MODEL,
+            llm_base_url=llm_base_url or DEFAULT_LLM_BASE_URL,
+            llm_api_key=x_llm_api_key or DEFAULT_LLM_API_KEY,
             confidence_threshold=confidence_threshold,
             include_pii=include_pii,
             use_ocr=DEFAULT_USE_OCR if use_ocr is None else use_ocr,
@@ -131,6 +165,8 @@ async def extract_document(
             {
                 "request_id": request_id,
                 "server_version": SERVER_VERSION,
+                "llm_provider": provider_spec.id,
+                "llm_model": config.llm_model or provider_spec.default_model or None,
                 "result": result,
             },
             headers={"X-Request-ID": request_id},
