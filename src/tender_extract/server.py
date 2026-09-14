@@ -59,6 +59,13 @@ def _resolve_provider(provider_id: str):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _default_provider_id() -> str:
+    try:
+        return get_provider(DEFAULT_LLM_PROVIDER).id
+    except ValueError:
+        return "none"
+
+
 @app.get("/healthz", tags=["system"])
 def healthz() -> dict[str, str]:
     return {"status": "ok", "version": SERVER_VERSION}
@@ -84,7 +91,7 @@ def info() -> dict[str, object]:
         "name": "tender-extract-server",
         "version": SERVER_VERSION,
         "max_upload_mb": MAX_UPLOAD_MB,
-        "default_llm_provider": DEFAULT_LLM_PROVIDER,
+        "default_llm_provider": _default_provider_id(),
         "default_llm_model": DEFAULT_LLM_MODEL,
         "supported_formats": sorted(SUPPORTED_SUFFIXES),
         "provider_discovery": "/v1/providers",
@@ -116,17 +123,23 @@ async def extract_document(
     filename = Path(file.filename or "upload").name
     suffix = Path(filename).suffix.lower()
     if suffix not in SUPPORTED_SUFFIXES:
+        await file.close()
         raise HTTPException(
             status_code=415,
             detail=f"unsupported file type: {suffix or '(none)'}; supported: {', '.join(sorted(SUPPORTED_SUFFIXES))}",
         )
 
-    provider_spec = _resolve_provider(llm_provider or DEFAULT_LLM_PROVIDER)
     temp_path: Path | None = None
     total_bytes = 0
     request_id = uuid.uuid4().hex
 
     try:
+        provider_spec = _resolve_provider(llm_provider or DEFAULT_LLM_PROVIDER)
+        uses_server_default = provider_spec.id == _default_provider_id()
+        effective_model = llm_model or (DEFAULT_LLM_MODEL if uses_server_default else None)
+        effective_base_url = llm_base_url or (DEFAULT_LLM_BASE_URL if uses_server_default else None)
+        effective_api_key = x_llm_api_key or (DEFAULT_LLM_API_KEY if uses_server_default else None)
+
         with tempfile.NamedTemporaryFile(prefix="tender-extract-", suffix=suffix, delete=False) as tmp:
             temp_path = Path(tmp.name)
             while True:
@@ -146,9 +159,9 @@ async def extract_document(
 
         config = ProcessingConfig(
             llm_provider=provider_spec.id,
-            llm_model=llm_model or DEFAULT_LLM_MODEL,
-            llm_base_url=llm_base_url or DEFAULT_LLM_BASE_URL,
-            llm_api_key=x_llm_api_key or DEFAULT_LLM_API_KEY,
+            llm_model=effective_model,
+            llm_base_url=effective_base_url,
+            llm_api_key=effective_api_key,
             confidence_threshold=confidence_threshold,
             include_pii=include_pii,
             use_ocr=DEFAULT_USE_OCR if use_ocr is None else use_ocr,
