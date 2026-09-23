@@ -1,0 +1,107 @@
+# 千里马标讯面板/正文混合抽取配置
+# 基于官方 example.yaml，patterns 段为千里马特有格式扩展。
+# 设计原则（学自 tender-extract patterns.py 分层置信度）：
+#   面板精确字段 0.95 > 正文带标签 0.90 > 宽松兜底 0.80
+#   值按置信度排序取主值，千里马面板格式天然压过政采 PDF 的宽松模式
+
+base:
+  confidence_threshold: 0.7
+  use_ner: false
+  use_dedupe: false
+  use_ocr: false
+
+chunking:
+  max_chunk_size: 800
+  overlap_size: 100
+  chapter_priority: true
+
+llm:
+  provider: none
+  model: null
+  base_url: null
+  max_tokens: 800
+  temperature: 0.1
+  timeout: 60
+
+patterns:
+  # ---- 招标单位（千里马面板 Tab 分隔，值后带"企业信息"链接文字）----
+  tenderer:
+    - pattern: '招标单位\t([^\t\n]+?)(?:企业信息)?(?=\t|$)'
+      confidence: 0.95
+      description: 千里马面板-招标单位
+    - pattern: '招标代理机构\t([^\t\n]+?)(?:企业信息)?(?=\t|$)'
+      confidence: 0.85
+      description: 千里马面板-代理机构（保守置信，与招标单位区分场景再启用）
+
+  # ---- 招标估价（千里马面板）+ 正文预算兜底 ----
+  bid_amount:
+    - pattern: '招标估价\t([\d,]+(?:\.\d+)?)'
+      confidence: 0.95
+      description: 千里马面板-招标估价
+    - pattern: '预算[：:][^0-9\n]{0,30}([\d,]+(?:\.\d+)?)\s*万元'
+      confidence: 0.85
+      description: 正文-采购预算万元
+
+  # ---- 标书费（新字段：千里马面板 + 正文售价两种形态）----
+  bid_doc_fee:
+    - pattern: '(?:招标文件|标书)售价[:：]?\s*(?:人民币)?[￥¥]?\s*([\d,]+(?:\.\d+)?)'
+      confidence: 0.95
+      description: 正文-招标文件售价
+    - pattern: '是否收取标书费\t([\d,]+(?:\.\d+)?)'
+      confidence: 0.90
+      description: 千里马面板-是否收取标书费
+    - pattern: '标书费（[^）]*）\s*([\d,]+(?:\.\d+)?)\s*元'
+      confidence: 0.90
+      description: 千里马表格-标书费
+
+  # ---- 保证金（千里马面板 Tab 形态，补官方只认冒号的空档）----
+  deposit:
+    - pattern: '保证金\t([\d,]+(?:\.\d+)?)'
+      confidence: 0.90
+      description: 千里马面板-保证金
+
+  # ---- 联系人（千里马面板：姓名/电话 合并形态，另存代理联系人）----
+  contact_info:
+    - pattern: '招标联系人\t([^\t\n]+?)(?:\s*更多联系人)?(?=\t|$)'
+      confidence: 0.95
+      description: 千里马面板-招标联系人
+    - pattern: '代理联系人\t([^\t\n]+?)(?=\t|$)'
+      confidence: 0.85
+      description: 千里马面板-代理联系人
+
+  # ---- 投标截止（面板 Tab 形态；"明确截止时间"官方模式已覆盖冒号形态）----
+  bid_date:
+    - pattern: '投标截止时间\t(20\d{2}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}\s*(?:日)?(?:\s*\d{1,2}\s*[：:时]\s*\d{2}(?:[：:]\d{2})?)?)'
+      confidence: 0.97
+      description: 千里马面板-投标截止时间
+    - pattern: '递交(?:投标|响应)?文件截止时间[：:]\s*(20\d{2}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}\s*(?:日)?(?:\s*\d{1,2}\s*[：:时]\s*\d{2}(?:[：:]\d{2})?)?)'
+      confidence: 0.99
+      description: 正文-递交文件截止时间（官方词表缺"递交投标文件截止时间"语序）
+    - pattern: '(?<!缴纳)递交截止时间[：:]\s*(20\d{2}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}\s*(?:日)?(?:\s*\d{1,2}\s*[：:时]\s*\d{2}(?:[：:]\d{2})?)?)'
+      confidence: 0.99
+      description: 正文-递交截止时间（简写形态，负向断言排除"保证金缴纳截止时间"）
+
+synonyms:
+  tender_keywords:
+    - "招标"
+    - "投标"
+    - "开标"
+    - "评标"
+  company_keywords:
+    - "有限公司"
+    - "股份有限公司"
+    - "集团"
+
+field_priorities:
+  project_name: 1
+  tenderer: 2
+  bid_amount: 3
+  bid_doc_fee: 4
+  deposit: 5
+  contact_info: 6
+  bid_date: 7
+
+cache:
+  enabled: true
+  cache_dir: ".cache"
+  expire_hours: 24
